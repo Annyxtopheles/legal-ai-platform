@@ -1,0 +1,459 @@
+﻿<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartLegal AI - আইনি অটোমেশন ও ডকুমেন্ট জেনারেটর</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Floating Chatbot Widget */
+    .chatbot-fab {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
+      cursor: pointer;
+      z-index: 90;
+      transition: all 0.25s ease;
+    }
+    .chatbot-fab:hover {
+      transform: scale(1.08);
+    }
+    .chatbot-window {
+      position: fixed;
+      bottom: 90px;
+      right: 24px;
+      width: 360px;
+      height: 480px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      border: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      z-index: 95;
+      overflow: hidden;
+    }
+    .chat-header {
+      background: linear-gradient(135deg, #1e3a8a, #4f46e5);
+      color: white;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-body {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 0.88rem;
+    }
+    .chat-bubble-ai {
+      background: white;
+      border: 1px solid #e2e8f0;
+      padding: 10px 12px;
+      border-radius: 10px 10px 10px 2px;
+      color: #1e293b;
+      line-height: 1.5;
+    }
+    .chat-bubble-user {
+      background: #4f46e5;
+      color: white;
+      padding: 10px 12px;
+      border-radius: 10px 10px 2px 10px;
+      align-self: flex-end;
+      line-height: 1.5;
+    }
+    .chat-footer {
+      padding: 10px;
+      background: white;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <i class="fa-solid fa-scale-balanced"></i>
+      </div>
+      <div class="brand-text">
+        <h1>SmartLegal AI</h1>
+        <p>বুদ্ধিমান আইনি অটোমেশন ও ডকুমেন্ট জেনারেটর</p>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn btn-secondary" id="btn-open-stamp-calc" title="স্ট্যাম্প ফি হিসাব করুন">
+        <i class="fa-solid fa-calculator" style="color: #ea580c;"></i> স্ট্যাম্প ক্যালকুলেটর
+      </button>
+      <button class="btn btn-secondary" id="btn-share-contract" title="অন্য পক্ষের কাছে সই করার লিংক পাঠান">
+        <i class="fa-solid fa-share-nodes" style="color: #0284c7;"></i> শেয়ার ও সাইন
+      </button>
+      <button class="btn btn-secondary" id="btn-history" title="সংরক্ষিত চুক্তিসমূহ দেখুন">
+        <i class="fa-solid fa-clock-rotate-left"></i> হিস্ট্রি
+      </button>
+      <button class="btn btn-secondary" id="btn-upload-audit" title="ফাইল আপলোড করে অডিট করুন">
+        <i class="fa-solid fa-file-arrow-up" style="color: #7c3aed;"></i> ফাইল অডিট
+      </button>
+      <button class="btn btn-secondary" id="btn-open-sign" title="ডিজিটাল স্বাক্ষর দিন">
+        <i class="fa-solid fa-signature" style="color: #059669;"></i> ই-স্বাক্ষর
+      </button>
+      <button class="btn btn-secondary" id="btn-save-draft" title="ডাটাবেসে সেভ করুন">
+        <i class="fa-solid fa-floppy-disk"></i> সেভ
+      </button>
+      <button class="btn btn-secondary" id="btn-docx">
+        <i class="fa-solid fa-file-word" style="color: #2563eb;"></i> Word
+      </button>
+      <button class="btn btn-primary" id="btn-pdf">
+        <i class="fa-solid fa-file-pdf"></i> PDF ডাউনলোড
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Split Layout -->
+  <main class="main-wrapper">
+    <!-- Left: Dynamic Form & AI Wizard -->
+    <section class="wizard-panel">
+      <!-- Template Selector Bar -->
+      <div class="template-selector-bar">
+        <span style="font-size: 0.85rem; font-weight: 700; color: #475569;">চুক্তিপত্র:</span>
+        <select class="custom-select" id="template-select">
+          <option value="tenancy_agreement">🏠 বাড়ি / ফ্ল্যাট / দোকান ভাড়ার চুক্তি</option>
+          <option value="nda_agreement">🔒 নন-ডিসক্লোজার চুক্তি (NDA)</option>
+          <option value="freelance_contract">💼 ফ্রিল্যান্স ও সার্ভিস চুক্তি</option>
+          <option value="partnership_agreement">🤝 অংশীদারি কারবার চুক্তিপত্র (Partnership Deed)</option>
+          <option value="employment_agreement">👔 কর্মসংস্থান ও চাকরির চুক্তি (Employment Contract)</option>
+        </select>
+        <select class="custom-select" id="lang-select" style="max-width: 110px;">
+          <option value="bn">বাংলা</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <!-- Step Navigation Tabs -->
+      <div class="wizard-steps">
+        <div class="step-tab active" data-step="1">
+          <i class="fa-solid fa-users"></i> ১. পক্ষের তথ্য
+        </div>
+        <div class="step-tab" data-step="2">
+          <i class="fa-solid fa-file-contract"></i> ২. মূল শর্তাবলি
+        </div>
+        <div class="step-tab" data-step="3">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> ৩. AI কাস্টম ধারা
+        </div>
+        <div class="step-tab" data-step="4">
+          <i class="fa-solid fa-signature"></i> ৪. স্বাক্ষর ও সমাপ্তি
+        </div>
+      </div>
+
+      <!-- Scrollable Form Body -->
+      <div class="form-scroll-container">
+        <!-- Step 1: Parties -->
+        <div class="step-content" id="step-1">
+          <div id="parties-form-fields"></div>
+        </div>
+
+        <!-- Step 2: Terms & Financials -->
+        <div class="step-content" id="step-2" style="display: none;">
+          <div id="terms-form-fields"></div>
+        </div>
+
+        <!-- Step 3: AI Clause Generator -->
+        <div class="step-content" id="step-3" style="display: none;">
+          <div class="ai-card">
+            <div class="ai-card-title">
+              <i class="fa-solid fa-brain"></i> AI Legal Clause Refiner
+            </div>
+            <p style="font-size: 0.85rem; color: #5b21b6; margin-bottom: 10px;">
+              আপনার কাস্টম কোনো শর্ত সাধারণ ভাষায় লিখুন। আমাদের AI তা আদালত ও চুক্তি আইনসম্মত ভাষায় রূপান্তর করবে।
+            </p>
+            <div class="form-group">
+              <textarea id="ai-clause-input" class="form-textarea" rows="3" placeholder="যেমন: 'ভাড়াটিয়া রাত ১১টার পর কোনো বহিরাগত আনতে পারবে না এবং ফ্ল্যাটে কোনো পোষা বিড়াল বা কুকুর রাখা যাবে না...'"></textarea>
+            </div>
+            <button class="btn btn-ai" id="btn-refine-clause" style="width: 100%;">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> AI দিয়ে আইনি ভাষায় পলিশ করুন
+            </button>
+          </div>
+
+          <div id="ai-clause-result" style="display: none; background: #ffffff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong id="ai-res-title" style="color: #1e1b4b; font-size: 0.95rem;"></strong>
+              <span class="badge badge-low" id="ai-res-risk">Low Risk</span>
+            </div>
+            <p id="ai-res-text" style="font-size: 0.9rem; color: #1e293b; line-height: 1.6; margin-bottom: 12px; background: #f8fafc; padding: 10px; border-radius: 6px;"></p>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-success" id="btn-add-clause" style="flex: 1;">
+                <i class="fa-solid fa-plus"></i> চুক্তিতে ধারাটি যুক্ত করুন
+              </button>
+              <button class="btn btn-secondary" id="btn-explain-clause-action" style="flex: 1;">
+                <i class="fa-solid fa-lightbulb"></i> সহজ ব্যাখ্যা দেখুন
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-top: 15px;">
+            <label class="form-label" style="font-weight: 700;">সংযুক্ত কাস্টম শর্তাবলি:</label>
+            <div id="custom-clauses-list"></div>
+          </div>
+        </div>
+
+        <!-- Step 4: Witnesses & Signatures -->
+        <div class="step-content" id="step-4" style="display: none;">
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+            <h4 style="color: #166534; font-size: 0.95rem; margin-bottom: 4px;">
+              <i class="fa-solid fa-signature"></i> ডিজিটাল ই-স্বাক্ষর (E-Signature)
+            </h4>
+            <p style="font-size: 0.85rem; color: #15803d; margin-bottom: 10px;">
+              স্ক্রিনে সরাসরি স্বাক্ষর করুন অথবা লিংক পাঠিয়ে অপর পক্ষের স্বাক্ষর সংগ্রহ করুন।
+            </p>
+            <button class="btn btn-success" id="btn-step4-sign" style="width: 100%;">
+              <i class="fa-solid fa-pen-nib"></i> স্বাক্ষর ক্যানভাস খুলুন
+            </button>
+          </div>
+          <div id="witness-form-fields"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: Live Legal Paper Preview -->
+    <section class="preview-panel">
+      <div style="width: 100%; max-width: 820px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;" class="preview-bar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn btn-secondary" id="btn-toggle-edit" style="font-size: 0.82rem; padding: 5px 10px;">
+            <i class="fa-solid fa-pen-to-square"></i> <span id="edit-mode-label">সরাসরি পেপারে এডিট</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-toggle-stamp" style="font-size: 0.82rem; padding: 5px 10px;">
+            <i class="fa-solid fa-stamp"></i> ৩০০ টাকার স্ট্যাম্প
+          </button>
+        </div>
+        <span style="font-size: 0.8rem; color: #16a34a; font-weight: 600;">
+          <i class="fa-solid fa-shield-halved"></i> ডিজিটাল ভেরিফিকেশন সক্রিয়
+        </span>
+      </div>
+
+      <div class="paper-sheet" id="preview-container">
+        <div style="text-align: center; padding: 60px; color: #94a3b8;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x"></i>
+          <p style="margin-top: 10px;">ডকুমেন্ট রেন্ডার হচ্ছে...</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Floating Legal Chatbot FAB & Window -->
+  <div class="chatbot-fab" id="fab-chatbot" title="আইনAI সহকারী সাথে চ্যাট করুন">
+    <i class="fa-solid fa-comment-dots"></i>
+  </div>
+
+  <div class="chatbot-window" id="chatbot-window" style="display: none;">
+    <div class="chat-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-scale-balanced"></i>
+        <strong>আইনAI সহকারী (Advisor)</strong>
+      </div>
+      <button id="close-chatbot" style="background:none; border:none; color:white; font-size:1.1rem; cursor:pointer;">✕</button>
+    </div>
+    <div class="chat-body" id="chat-body">
+      <div class="chat-bubble-ai">
+        👋 নমস্কার! আমি আপনার <strong>আইনAI সহকারী</strong>।<br>
+        চুক্তিপত্র, স্ট্যাম্পের নিয়ম, ভাড়া নিয়ন্ত্রণ আইন বা নোটিশ বিষয়ে যেকোনো আইনি প্রশ্ন আমাকে বাংলায় জিজ্ঞেস করতে পারেন।
+      </div>
+    </div>
+    <div class="chat-footer">
+      <input type="text" id="chat-input" class="form-input" placeholder="আইনি প্রশ্নটি লিখুন..." style="font-size: 0.85rem; padding: 6px 10px;">
+      <button class="btn btn-primary" id="btn-chat-send" style="padding: 6px 12px;">
+        <i class="fa-solid fa-paper-plane"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal 1: Stamp Duty Calculator -->
+  <div class="modal-overlay" id="stamp-calc-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #ea580c; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-calculator"></i> বাংলাদেশ স্ট্যাম্প ডিউটি ক্যালকুলেটর
+        </h3>
+        <button id="close-stamp-calc" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">চুক্তির ধরণ:</label>
+          <select class="custom-select" id="calc-doc-type" style="width: 100%;">
+            <option value="tenancy_agreement">বাড়ি / দোকান ভাড়ার চুক্তি</option>
+            <option value="partnership_agreement">অংশীদারি কারবার চুক্তি (Partnership)</option>
+            <option value="nda_agreement">নন-ডিসক্লোজার চুক্তি (NDA)</option>
+            <option value="freelance_contract">ফ্রিল্যান্স সার্ভিস চুক্তি</option>
+            <option value="employment_agreement">কর্মসংস্থান ও চাকরির চুক্তি</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <div class="form-group">
+              <label class="form-label">টাকার পরিমাণ (ভাড়া / মূলধন):</label>
+              <input type="number" id="calc-amount" class="form-input" value="25000">
+            </div>
+          </div>
+          <div class="form-col">
+            <div class="form-group">
+              <label class="form-label">মেয়াদ (মাসে):</label>
+              <input type="number" id="calc-duration" class="form-input" value="12">
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-run-stamp-calc" style="width: 100%;">
+          <i class="fa-solid fa-calculator"></i> হিসাব করুন
+        </button>
+
+        <div id="stamp-calc-result" style="display: none; margin-top: 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 14px;">
+          <!-- Dynamically calculated result -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-stamp-calc-footer">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Share & Remote Signing -->
+  <div class="modal-overlay" id="share-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #0284c7; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-share-nodes"></i> দূরবর্তী স্বাক্ষর ও শেয়ারিং লিংক
+        </h3>
+        <button id="close-share" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
+          নিচের লিংকটি ভাড়াটিয়া, ক্লায়েন্ট বা অংশীদারের কাছে পাঠান। তারা তাদের মোবাইল বা কম্পিউটার থেকেই চুক্তি পড়ে সরাসরি ডিজিটাল সই করতে পারবেন:
+        </p>
+        <div class="form-group" style="display: flex; gap: 8px;">
+          <input type="text" id="share-url-input" class="form-input" readonly style="background: #f8fafc; font-size: 0.85rem;">
+          <button class="btn btn-primary" id="btn-copy-share-url" style="padding: 6px 12px; white-space: nowrap;">
+            <i class="fa-solid fa-copy"></i> কপি
+          </button>
+        </div>
+        <div style="margin-top: 14px; display: flex; gap: 10px;">
+          <a id="btn-whatsapp-share" target="_blank" class="btn btn-success" style="flex: 1; text-decoration: none;">
+            <i class="fa-brands fa-whatsapp"></i> হোয়াটসঅ্যাপে পাঠান
+          </a>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-share-footer">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: E-Signature Canvas -->
+  <div class="modal-overlay" id="sign-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-pen-nib" style="color: #059669;"></i> ডিজিটাল স্বাক্ষর প্যাড
+        </h3>
+        <button id="close-sign" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 12px; display: flex; gap: 10px;">
+          <button class="btn btn-primary" id="sign-target-p1" style="flex: 1; font-size: 0.85rem;">১ম পক্ষ (মালিক/ক্লায়েন্ট)</button>
+          <button class="btn btn-secondary" id="sign-target-p2" style="flex: 1; font-size: 0.85rem;">২য় পক্ষ (ভাড়াটিয়া/কর্মী)</button>
+        </div>
+        <div style="position: relative; border: 2px dashed #94a3b8; border-radius: 8px; background: #fafafa; overflow: hidden;">
+          <canvas id="sig-canvas" width="480" height="160" style="display: block; width: 100%; height: 160px; cursor: crosshair; touch-action: none;"></canvas>
+          <button id="btn-clear-canvas" style="position: absolute; top: 8px; right: 8px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; cursor: pointer;">
+            <i class="fa-solid fa-eraser"></i> মুছুন
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-sign-footer">বাতিল</button>
+        <button class="btn btn-success" id="btn-apply-signature">
+          <i class="fa-solid fa-check"></i> স্বাক্ষর সংযুক্ত করুন
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Contract History -->
+  <div class="modal-overlay" id="history-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #0284c7; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-clock-rotate-left"></i> সংরক্ষিত চুক্তিসমূহ (Database History)
+        </h3>
+        <button id="close-history" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="history-list-container"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-history-footer">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 5: External Contract Upload & AI Auditor -->
+  <div class="modal-overlay" id="upload-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #7c3aed; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-file-shield"></i> বাইরের ডকুমেন্ট আপলোড ও AI অডিট
+        </h3>
+        <button id="close-upload" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <input type="file" id="upload-file-input" accept=".txt,.pdf,.doc,.docx" style="margin-bottom: 8px; font-size: 0.85rem;">
+          <textarea id="upload-text-input" class="form-textarea" rows="6" placeholder="চুক্তিপত্রের সম্পূর্ণ টেক্সট এখানে পেস্ট করুন..."></textarea>
+        </div>
+        <button class="btn btn-ai" id="btn-run-upload-audit" style="width: 100%;">
+          <i class="fa-solid fa-magnifying-glass-chart"></i> AI দিয়ে সম্পূর্ণ চুক্তি অডিট করুন
+        </button>
+        <div id="upload-audit-result" style="display: none; margin-top: 16px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-upload-footer">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6: AI Clause Explainer -->
+  <div class="modal-overlay" id="explainer-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #1e3a8a; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-lightbulb" style="color: #eab308;"></i> সহজ ভাষায় আইনি ধারার অর্থ
+        </h3>
+        <button id="close-explainer" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
+      </div>
+      <div class="modal-body" id="explainer-content"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-explainer-footer">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
