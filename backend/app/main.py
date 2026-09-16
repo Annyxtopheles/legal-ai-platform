@@ -14,18 +14,22 @@ from app.schemas.document_schemas import (
     AuditContractRequest, AuditContractResponse,
     GenerateDocumentRequest, GenerateDocumentResponse,
     SaveContractRequest, AuditUploadRequest,
-    LegalChatRequest, StampCalculateRequest, RemoteSignRequest
+    LegalChatRequest, StampCalculateRequest, RemoteSignRequest,
+    GenerateNoticeRequest, GenerateNoticeResponse,
+    GenerateHashRequest, VerifyHashRequest, ApplyWatermarkRequest
 )
 from app.services.template_engine import template_engine
 from app.services.ai_service import ai_service
 from app.services.pdf_service import pdf_service
 from app.services.stamp_calculator import stamp_calculator
+from app.services.notice_generator import notice_generator
+from app.services.security_service import security_service
 from app.database import save_contract, list_contracts, get_contract, delete_contract, update_remote_signature
 
 app = FastAPI(
     title="Smart AI Legal Automation Platform",
     description="Intelligent legal contract generator with AI assistant chatbot, stamp calculator, remote signing & PDF export.",
-    version="2.5.0"
+    version="3.0.0 (Phase 5 Production)"
 )
 
 app.add_middleware(
@@ -113,6 +117,60 @@ def calculate_stamp(req: StampCalculateRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Phase 5: Legal Notice Generator
+@app.post("/api/tools/generate-notice", response_model=GenerateNoticeResponse)
+def generate_legal_notice(req: GenerateNoticeRequest):
+    try:
+        res = notice_generator.generate_notice(
+            notice_type=req.notice_type,
+            contract_data=req.contract_data,
+            custom_reason=req.custom_reason or ""
+        )
+        return GenerateNoticeResponse(**res)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Notice generation error: {str(e)}")
+
+# Phase 5: Cryptographic SHA-256 Fingerprint Generator
+@app.post("/api/tools/generate-hash")
+def generate_contract_hash(req: GenerateHashRequest):
+    try:
+        if req.content:
+            sha = security_service.compute_sha256(req.content)
+            short_h = sha[:12].upper()
+            return {
+                "sha256": sha,
+                "short_hash": short_h,
+                "ref_id": f"SLA-SEC-{short_h}",
+                "status": "SECURED_SHA256"
+            }
+        else:
+            return security_service.generate_fingerprint(
+                doc_type=req.doc_type or "general",
+                data=req.data or {}
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Hashing error: {str(e)}")
+
+# Phase 5: Cryptographic Hash Verification
+@app.post("/api/tools/verify-hash")
+def verify_contract_hash(req: VerifyHashRequest):
+    try:
+        return security_service.verify_integrity(req.content, req.expected_hash)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Verification error: {str(e)}")
+
+# Phase 5: Watermark Application
+@app.post("/api/tools/apply-watermark")
+def apply_watermark_route(req: ApplyWatermarkRequest):
+    try:
+        watermarked = security_service.apply_watermark(
+            html=req.html_content,
+            watermark_type=req.watermark_type or "draft"
+        )
+        return {"rendered_html": watermarked}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Watermark error: {str(e)}")
 
 # Database Contract Management
 @app.get("/api/contracts")

@@ -102,6 +102,12 @@
     </div>
 
     <div class="nav-actions">
+      <button class="btn btn-secondary" id="btn-open-notice" title="আইনি নোটিশ তৈরি করুন (উচ্ছেদ/নবায়ন/তাগিদ)">
+        <i class="fa-solid fa-bullhorn" style="color: #dc2626;"></i> নোটিশ ইঞ্জিন
+      </button>
+      <button class="btn btn-secondary" id="btn-verify-tamper" title="দলিল অবিকৃত কিনা ক্রিপ্টোগ্রাফিক যাচাই">
+        <i class="fa-solid fa-fingerprint" style="color: #0d9488;"></i> হ্যাশ যাচাই
+      </button>
       <button class="btn btn-secondary" id="btn-open-stamp-calc" title="স্ট্যাম্প ফি হিসাব করুন">
         <i class="fa-solid fa-calculator" style="color: #ea580c;"></i> স্ট্যাম্প ক্যালকুলেটর
       </button>
@@ -244,10 +250,18 @@
           <button class="btn btn-secondary" id="btn-toggle-stamp" style="font-size: 0.82rem; padding: 5px 10px;">
             <i class="fa-solid fa-stamp"></i> ৩০০ টাকার স্ট্যাম্প
           </button>
+          <button class="btn btn-secondary" id="btn-toggle-watermark" style="font-size: 0.82rem; padding: 5px 10px;" title="খসড়া বা গোপনীয় ওয়াটারমার্ক টগল">
+            <i class="fa-solid fa-droplet" style="color: #6366f1;"></i> <span id="watermark-label">ওয়াটারমার্ক: বন্ধ</span>
+          </button>
         </div>
-        <span style="font-size: 0.8rem; color: #16a34a; font-weight: 600;">
-          <i class="fa-solid fa-shield-halved"></i> ডিজিটাল ভেরিফিকেশন সক্রিয়
-        </span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="crypto-fingerprint-badge" style="font-size: 0.74rem; background: #f8fafc; color: #334155; padding: 3px 8px; border-radius: 4px; font-family: monospace; border: 1px solid #cbd5e1; cursor: pointer;" title="ক্লিক করে সম্পূর্ণ SHA-256 কপি করুন">
+            <i class="fa-solid fa-shield-halved" style="color:#059669"></i> SHA: <span id="sha-badge-text">গণনা হচ্ছে...</span>
+          </span>
+          <span style="font-size: 0.8rem; color: #16a34a; font-weight: 600;">
+            <i class="fa-solid fa-circle-check"></i> সিকিউরড
+          </span>
+        </div>
       </div>
 
       <div class="paper-sheet" id="preview-container">
@@ -450,6 +464,106 @@
       <div class="modal-body" id="explainer-content"></div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="btn-close-explainer-footer">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 7: Legal Notice Generator (Phase 5) -->
+  <div class="modal-overlay" id="notice-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #dc2626; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-bullhorn"></i> আইনি নোটিশ জেনারেটর (Legal Notice Engine)
+        </h3>
+        <button id="close-notice" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
+          ভাড়াটিয়া বা সংশ্লিষ্ট পক্ষের অনুকূলে এক ক্লিকে আইনি নোটিশ, উচ্ছেদ পত্র অথবা বকেয়া তাগিদপত্র প্রস্তুত করুন।
+        </p>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label style="font-weight: 600; font-size: 0.85rem;">নোটিশের ধরণ নির্বাচন করুন:</label>
+          <select class="custom-select" id="notice-type-select" style="width: 100%;">
+            <option value="vacate_notice">🏠 বাসা / দোকান ছাড়ার আইনি নোটিশ (Vacate Notice)</option>
+            <option value="renewal_notice">📄 চুক্তি নবায়ন ও শর্ত প্রস্তাবনা পত্র (Contract Renewal)</option>
+            <option value="demand_notice">⚠️ বকেয়া ভাড়া ও পাওনা নিষ্পত্তির তাগিদপত্র (Demand Notice)</option>
+          </select>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div class="form-group">
+            <label style="font-size: 0.82rem; font-weight: 600;">নোটিশ প্রেরক (মালিক/১ম পক্ষ):</label>
+            <input type="text" id="notice-landlord" class="form-input" placeholder="মালিকের নাম">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 0.82rem; font-weight: 600;">নোটিশ প্রাপক (ভাড়াটিয়া/২য় পক্ষ):</label>
+            <input type="text" id="notice-tenant" class="form-input" placeholder="ভাড়াটিয়ার নাম">
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label style="font-size: 0.82rem; font-weight: 600;">সম্পত্তি / প্রাঙ্গণের ঠিকানা:</label>
+          <input type="text" id="notice-address" class="form-input" placeholder="ঠিকানা">
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label style="font-size: 0.82rem; font-weight: 600;">বিশেষ কারণ বা অতিরিক্ত বিবরণ (ঐচ্ছিক):</label>
+          <textarea id="notice-reason" class="form-textarea" rows="2" placeholder="যেমন: ব্যক্তিগত প্রয়োজনে প্রাঙ্গণ প্রয়োজন অথবা বিগত ৩ মাসের ভাড়া বকেয়া..."></textarea>
+        </div>
+        <button class="btn btn-primary" id="btn-generate-notice-submit" style="width: 100%; background: #dc2626;">
+          <i class="fa-solid fa-file-pen"></i> প্রফেশনাল আইনি নোটিশ তৈরি করুন
+        </button>
+
+        <div id="notice-output-container" style="display: none; margin-top: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <strong id="notice-output-title" style="color: #0f172a; font-size: 0.95rem;"></strong>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary" id="btn-copy-notice" style="font-size: 0.78rem; padding: 4px 8px;">
+                <i class="fa-solid fa-copy"></i> কপি
+              </button>
+              <button class="btn btn-secondary" id="btn-inject-notice" style="font-size: 0.78rem; padding: 4px 8px; color: #16a34a;">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> প্রিভিউতে দেখুন
+              </button>
+            </div>
+          </div>
+          <div id="notice-output-body" style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px; font-family: monospace; font-size: 0.88rem; white-space: pre-wrap; line-height: 1.6; max-height: 250px; overflow-y: auto;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-notice-footer">বন্ধ করুন</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 8: SHA-256 Tamper-Proof Hash Verification (Phase 5) -->
+  <div class="modal-overlay" id="verify-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.1rem; color: #0d9488; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-fingerprint"></i> SHA-256 ক্রিপ্টোগ্রাফিক হ্যাশ ও প্রমাণিকতা যাচাই
+        </h3>
+        <button id="close-verify" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
+          প্রতিটি দলিলের জন্য একটি অনন্য গাণিতিক হ্যাশ তৈরি হয়। চুক্তি স্বাক্ষরের পর কোনো একটি অক্ষরও পরিবর্তন হলে এই হ্যাশ পরিবর্তিত হয়ে যায়।
+        </p>
+
+        <div style="background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+          <div style="font-size: 0.8rem; font-weight: 700; color: #0f766e; margin-bottom: 4px;">বর্তমান দলিলের সক্রিয় হ্যাশ (Current Document Hash):</div>
+          <div id="current-doc-full-hash" style="font-family: monospace; font-size: 0.82rem; word-break: break-all; color: #134e4a; background: white; padding: 8px; border-radius: 4px; border: 1px solid #ccfbf1;">গণনা হচ্ছে...</div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label style="font-size: 0.85rem; font-weight: 600;">যাচাই করার জন্য রেফারেন্স হ্যাশ বা কোড পেস্ট করুন:</label>
+          <input type="text" id="verify-hash-input" class="form-input" placeholder="যেমন: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855">
+        </div>
+
+        <button class="btn btn-primary" id="btn-run-verify-submit" style="width: 100%; background: #0d9488;">
+          <i class="fa-solid fa-shield-halved"></i> দলিলের প্রমাণিকতা যাচাই করুন
+        </button>
+
+        <div id="verify-result-box" style="display: none; margin-top: 16px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-verify-footer">বন্ধ করুন</button>
       </div>
     </div>
   </div>

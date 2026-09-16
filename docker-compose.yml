@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  legal-platform:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart_legal_ai_platform
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      # Persistent storage for SQLite contracts DB
+      - contracts_data:/app/backend/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  contracts_data:
+    name: legal_contracts_data

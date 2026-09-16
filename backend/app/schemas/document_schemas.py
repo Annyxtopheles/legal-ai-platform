@@ -71,3 +71,28 @@ class StampCalculateRequest(BaseModel):
 class RemoteSignRequest(BaseModel):
     signature_data: str
     target: Optional[str] = "party2"
+
+class GenerateNoticeRequest(BaseModel):
+    notice_type: str = Field(..., description="vacate_notice | renewal_notice | demand_notice")
+    contract_data: Dict[str, Any] = Field(default_factory=dict)
+    custom_reason: Optional[str] = ""
+
+class GenerateNoticeResponse(BaseModel):
+    notice_type: str
+    title: str
+    subject: str
+    body: str
+    date: str
+
+class GenerateHashRequest(BaseModel):
+    content: str = ""
+    doc_type: Optional[str] = ""
+    data: Optional[Dict[str, Any]] = None
+
+class VerifyHashRequest(BaseModel):
+    content: str
+    expected_hash: str
+
+class ApplyWatermarkRequest(BaseModel):
+    html_content: str
+    watermark_type: Optional[str] = "draft"

@@ -10,7 +10,9 @@ let state = {
   showStamp: true,
   currentContractId: null,
   sigTarget: 'p1',
-  isDrawing: false
+  isDrawing: false,
+  watermarkMode: 'none', // 'none' | 'draft' | 'confidential'
+  currentDocHash: ''
 };
 
 const formDefinitions = {
@@ -271,9 +273,56 @@ async function triggerDocumentRender() {
       }
 
       attachClauseExplainerButtons();
+      applyWatermarkToPreview();
+      refreshDocumentHash();
     }
   } catch (err) {
     console.error('Render error:', err);
+  }
+}
+
+function applyWatermarkToPreview() {
+  const container = document.getElementById('preview-container');
+  if (!container) return;
+
+  const existingOverlay = container.querySelector('.sla-watermark-overlay');
+  if (existingOverlay) existingOverlay.remove();
+
+  if (state.watermarkMode === 'none') return;
+
+  const labels = {
+    draft: 'খসড়া • DRAFT COPY',
+    confidential: 'গোপনীয় • CONFIDENTIAL'
+  };
+
+  const overlay = document.createElement('div');
+  overlay.className = 'sla-watermark-overlay';
+  overlay.innerText = labels[state.watermarkMode] || 'খসড়া • DRAFT COPY';
+  overlay.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-32deg); font-size: 52px; font-weight: 900; color: rgba(220, 38, 38, 0.12); text-transform: uppercase; letter-spacing: 5px; pointer-events: none; z-index: 10; white-space: nowrap; user-select: none; text-align: center; border: 6px dashed rgba(220, 38, 38, 0.14); padding: 14px 30px; border-radius: 12px;';
+  container.style.position = 'relative';
+  container.appendChild(overlay);
+}
+
+async function refreshDocumentHash() {
+  try {
+    const container = document.getElementById('preview-container');
+    if (!container) return;
+    const cleanText = container.innerText || '';
+    const res = await fetch('/api/tools/generate-hash', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: cleanText })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      state.currentDocHash = data.sha256 || '';
+      const badge = document.getElementById('sha-badge-text');
+      if (badge) badge.innerText = data.short_hash || '...';
+      const fullDisplay = document.getElementById('current-doc-full-hash');
+      if (fullDisplay) fullDisplay.innerText = data.sha256 || '';
+    }
+  } catch (e) {
+    console.error('Hash update error:', e);
   }
 }
 
@@ -938,6 +987,206 @@ function attachEvents() {
       btn.disabled = false;
     }
   });
+
+  // Phase 5: Watermark Toggle
+  const btnWatermark = document.getElementById('btn-toggle-watermark');
+  const watermarkLabel = document.getElementById('watermark-label');
+  if (btnWatermark) {
+    btnWatermark.addEventListener('click', () => {
+      if (state.watermarkMode === 'none') {
+        state.watermarkMode = 'draft';
+        if (watermarkLabel) watermarkLabel.innerText = 'ওয়াটারমার্ক: খসড়া';
+        btnWatermark.style.background = '#fee2e2';
+        btnWatermark.style.color = '#dc2626';
+      } else if (state.watermarkMode === 'draft') {
+        state.watermarkMode = 'confidential';
+        if (watermarkLabel) watermarkLabel.innerText = 'ওয়াটারমার্ক: গোপনীয়';
+        btnWatermark.style.background = '#fef3c7';
+        btnWatermark.style.color = '#d97706';
+      } else {
+        state.watermarkMode = 'none';
+        if (watermarkLabel) watermarkLabel.innerText = 'ওয়াটারমার্ক: বন্ধ';
+        btnWatermark.style.background = '';
+        btnWatermark.style.color = '';
+      }
+      applyWatermarkToPreview();
+    });
+  }
+
+  // Phase 5: Hash Badge Click opens Verify Modal
+  const hashBadge = document.getElementById('crypto-fingerprint-badge');
+  if (hashBadge) {
+    hashBadge.addEventListener('click', () => {
+      const modal = document.getElementById('verify-modal');
+      if (modal) modal.style.display = 'flex';
+    });
+  }
+
+  // Phase 5: Legal Notice Generator Modal Handlers
+  const btnOpenNotice = document.getElementById('btn-open-notice');
+  const noticeModal = document.getElementById('notice-modal');
+  const closeNotice = document.getElementById('close-notice');
+  const btnCloseNoticeFooter = document.getElementById('btn-close-notice-footer');
+  const btnGenerateNoticeSubmit = document.getElementById('btn-generate-notice-submit');
+  const btnCopyNotice = document.getElementById('btn-copy-notice');
+  const btnInjectNotice = document.getElementById('btn-inject-notice');
+
+  let lastGeneratedNotice = null;
+
+  if (btnOpenNotice && noticeModal) {
+    btnOpenNotice.addEventListener('click', () => {
+      const landlord = state.formData.landlord_name || state.formData.party1_name || state.formData.employer_name || '';
+      const tenant = state.formData.tenant_name || state.formData.party2_name || state.formData.employee_name || '';
+      const address = state.formData.property_address || state.formData.landlord_address || '';
+
+      const landlordInput = document.getElementById('notice-landlord');
+      const tenantInput = document.getElementById('notice-tenant');
+      const addressInput = document.getElementById('notice-address');
+
+      if (landlordInput && !landlordInput.value) landlordInput.value = landlord;
+      if (tenantInput && !tenantInput.value) tenantInput.value = tenant;
+      if (addressInput && !addressInput.value) addressInput.value = address;
+
+      noticeModal.style.display = 'flex';
+    });
+  }
+
+  if (closeNotice) closeNotice.addEventListener('click', () => { noticeModal.style.display = 'none'; });
+  if (btnCloseNoticeFooter) btnCloseNoticeFooter.addEventListener('click', () => { noticeModal.style.display = 'none'; });
+
+  if (btnGenerateNoticeSubmit) {
+    btnGenerateNoticeSubmit.addEventListener('click', async () => {
+      const noticeType = document.getElementById('notice-type-select').value;
+      const landlord = document.getElementById('notice-landlord').value;
+      const tenant = document.getElementById('notice-tenant').value;
+      const address = document.getElementById('notice-address').value;
+      const reason = document.getElementById('notice-reason').value;
+
+      const originalBtnText = btnGenerateNoticeSubmit.innerHTML;
+      btnGenerateNoticeSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> নোটিশ তৈরি হচ্ছে...';
+      btnGenerateNoticeSubmit.disabled = true;
+
+      try {
+        const res = await fetch('/api/tools/generate-notice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            notice_type: noticeType,
+            contract_data: {
+              landlord_name: landlord,
+              tenant_name: tenant,
+              property_address: address,
+              rent_amount: state.formData.rent_amount || '15,000',
+              landlord_phone: state.formData.landlord_phone || '০১XXXXXXXXX'
+            },
+            custom_reason: reason
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          lastGeneratedNotice = data;
+          document.getElementById('notice-output-title').innerText = data.title;
+          document.getElementById('notice-output-body').innerText = data.body;
+          document.getElementById('notice-output-container').style.display = 'block';
+        } else {
+          alert('নোটিশ তৈরি করতে সমস্যা হয়েছে।');
+        }
+      } catch (err) {
+        alert('ত্রুটি: ' + err.message);
+      } finally {
+        btnGenerateNoticeSubmit.innerHTML = originalBtnText;
+        btnGenerateNoticeSubmit.disabled = false;
+      }
+    });
+  }
+
+  if (btnCopyNotice) {
+    btnCopyNotice.addEventListener('click', () => {
+      if (!lastGeneratedNotice) return;
+      navigator.clipboard.writeText(lastGeneratedNotice.body).then(() => {
+        btnCopyNotice.innerHTML = '<i class="fa-solid fa-check"></i> কপি হয়েছে!';
+        setTimeout(() => {
+          btnCopyNotice.innerHTML = '<i class="fa-solid fa-copy"></i> কপি';
+        }, 1800);
+      });
+    });
+  }
+
+  if (btnInjectNotice) {
+    btnInjectNotice.addEventListener('click', () => {
+      if (!lastGeneratedNotice) return;
+      const container = document.getElementById('preview-container');
+      container.innerHTML = '<div style="font-family: Hind Siliguri, sans-serif; padding: 20px; line-height: 1.8; color: #0f172a;"><div style="border-bottom: 2px solid #991b1b; padding-bottom: 8px; margin-bottom: 20px; text-align: center;"><h2 style="font-size: 18pt; color: #991b1b; margin: 0;">' + lastGeneratedNotice.title + '</h2><div style="font-size: 11pt; color: #475569; margin-top: 4px;">আইনি ও প্রথাগত উচ্ছেদ/নবায়ন নোটিশ</div></div><div style="font-weight: 700; color: #1e3a8a; margin-bottom: 14px;">' + lastGeneratedNotice.subject + '</div><div style="white-space: pre-wrap; font-size: 13pt; color: #1e293b;">' + lastGeneratedNotice.body + '</div><div style="margin-top: 30px; border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 9pt; color: #64748b; text-align: center;">SmartLegal AI Notice Engine • প্রস্তুতের তারিখ: ' + lastGeneratedNotice.date + '</div></div>';
+      noticeModal.style.display = 'none';
+      applyWatermarkToPreview();
+      refreshDocumentHash();
+    });
+  }
+
+  // Phase 5: Tamper-Proof SHA-256 Verification Modal Handlers
+  const btnVerifyTamper = document.getElementById('btn-verify-tamper');
+  const verifyModal = document.getElementById('verify-modal');
+  const closeVerify = document.getElementById('close-verify');
+  const btnCloseVerifyFooter = document.getElementById('btn-close-verify-footer');
+  const btnRunVerifySubmit = document.getElementById('btn-run-verify-submit');
+  const verifyResultBox = document.getElementById('verify-result-box');
+
+  if (btnVerifyTamper && verifyModal) {
+    btnVerifyTamper.addEventListener('click', () => {
+      verifyModal.style.display = 'flex';
+      refreshDocumentHash();
+    });
+  }
+
+  if (closeVerify) closeVerify.addEventListener('click', () => { verifyModal.style.display = 'none'; });
+  if (btnCloseVerifyFooter) btnCloseVerifyFooter.addEventListener('click', () => { verifyModal.style.display = 'none'; });
+
+  if (btnRunVerifySubmit) {
+    btnRunVerifySubmit.addEventListener('click', async () => {
+      const expectedHash = document.getElementById('verify-hash-input').value.trim();
+      if (!expectedHash) {
+        alert('অনুগ্রহ করে রেফারেন্স হ্যাশ কোড ইনপুট দিন।');
+        return;
+      }
+
+      const container = document.getElementById('preview-container');
+      const currentContent = container ? container.innerText : '';
+
+      btnRunVerifySubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> যাচাই হচ্ছে...';
+      btnRunVerifySubmit.disabled = true;
+
+      try {
+        const res = await fetch('/api/tools/verify-hash', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: currentContent,
+            expected_hash: expectedHash
+          })
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          verifyResultBox.style.display = 'block';
+
+          if (result.is_valid) {
+            verifyResultBox.innerHTML = '<div style="background: #ecfdf5; border: 1.5px solid #10b981; border-radius: 8px; padding: 14px; color: #065f46;"><div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1rem; margin-bottom: 6px;"><i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 1.2rem;"></i> দলিলটি ১০০% অবিকৃত ও খাঁটি (AUTHENTIC & UN-TAMPERED)</div><p style="font-size: 0.85rem; margin: 0; line-height: 1.5;">ক্রিপ্টোগ্রাফিক হ্যাশ শতভাগ মিলে গেছে। স্বাক্ষরের পর দলিলে কোনো কাটছাঁট বা অবৈধ পরিবর্তন করা হয়নি।</p><div style="margin-top: 8px; font-family: monospace; font-size: 0.78rem; color: #047857;">Computed Hash: ' + result.computed_hash + '</div></div>';
+          } else {
+            verifyResultBox.innerHTML = '<div style="background: #fef2f2; border: 1.5px solid #ef4444; border-radius: 8px; padding: 14px; color: #991b1b;"><div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1rem; margin-bottom: 6px;"><i class="fa-solid fa-triangle-exclamation" style="color: #ef4444; font-size: 1.2rem;"></i> সতর্কতা: দলিলটি বিকৃত বা পরিবর্তিত (TAMPERED / MODIFIED)</div><p style="font-size: 0.85rem; margin: 0; line-height: 1.5;">প্রদত্ত রেফারেন্স হ্যাশের সাথে বর্তমান দলিলের হ্যাশ মেলেনি। মূল ডকুমেন্টের তথ্য বিকৃত বা পরিবর্তন করা হয়েছে।</p><div style="margin-top: 8px; font-family: monospace; font-size: 0.78rem; color: #b91c1c;">Current Hash: ' + result.computed_hash + '</div></div>';
+          }
+        } else {
+          alert('হ্যাশ যাচাই করতে ব্যর্থ হয়েছে।');
+        }
+      } catch (err) {
+        alert('ত্রুটি: ' + err.message);
+      } finally {
+        btnRunVerifySubmit.innerHTML = '<i class="fa-solid fa-shield-halved"></i> দলিলের প্রমাণিকতা যাচাই করুন';
+        btnRunVerifySubmit.disabled = false;
+      }
+    });
+  }
+
 }
 
 window.addEventListener('DOMContentLoaded', initApp);
