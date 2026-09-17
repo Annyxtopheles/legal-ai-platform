@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SmartLegal AI - আইনি অটোমেশন ও ডকুমেন্ট জেনারেটর</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=3.5.5">
+  <link rel="stylesheet" href="/static/css/style.css?v=3.5.6">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -167,7 +167,7 @@
 
     <!-- Right: Live Legal Paper Preview -->
     <section class="preview-panel">
-      <div style="width: 100%; max-width: 820px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;" class="preview-bar">
+      <div class="preview-bar">
         <div style="display: flex; align-items: center; gap: 8px;">
           <button class="btn btn-secondary" id="btn-toggle-edit" style="font-size: 0.82rem; padding: 5px 10px;">
             <i class="fa-solid fa-pen-to-square"></i> <span id="edit-mode-label">সরাসরি পেপারে এডিট</span>
@@ -180,6 +180,12 @@
           </button>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="badge" id="a4-format-badge" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; font-weight: 600;" title="স্ট্যান্ডার্ড A4 প্রিন্ট লেআউট (২১০ × ২৯৭ মিমি)">
+            <i class="fa-solid fa-file-lines"></i> A4 (২১০×২৯৭মিমি)
+          </span>
+          <span class="badge" id="preview-page-count-badge" style="background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; font-weight: 600;">
+            <i class="fa-solid fa-file"></i> ১ পৃষ্ঠা
+          </span>
           <span id="crypto-fingerprint-badge" style="font-size: 0.74rem; background: #f8fafc; color: #334155; padding: 3px 8px; border-radius: 4px; font-family: monospace; border: 1px solid #cbd5e1; cursor: pointer;" title="ক্লিক করে সম্পূর্ণ SHA-256 কপি করুন">
             <i class="fa-solid fa-shield-halved" style="color:#059669"></i> SHA: <span id="sha-badge-text">গণনা হচ্ছে...</span>
           </span>
@@ -532,6 +538,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=3.5.5"></script>
+  <script src="/static/js/app.js?v=3.5.6"></script>
 </body>
 </html>

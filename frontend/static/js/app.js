@@ -290,10 +290,44 @@ async function triggerDocumentRender() {
       attachSignatureBoxClicks();
       applyWatermarkToPreview();
       refreshDocumentHash();
+      updatePageGuideAndCount();
     }
   } catch (err) {
     console.error('Render error:', err);
   }
+}
+
+function updatePageGuideAndCount() {
+  const container = document.getElementById('preview-container');
+  const badge = document.getElementById('preview-page-count-badge');
+  if (!container) return;
+
+  // Remove existing dividers
+  container.querySelectorAll('.preview-page-divider').forEach(d => d.remove());
+
+  // Wait a microtask / frame for CSS reflow to give exact pixel metrics
+  requestAnimationFrame(() => {
+    // 1 A4 page height in pixels at 96 DPI: 297mm * 96 / 25.4 = ~1122.5px
+    const a4HeightPx = 1122.5;
+    const totalHeight = container.scrollHeight;
+    const pageCount = Math.max(1, Math.ceil(totalHeight / a4HeightPx));
+
+    if (badge) {
+      badge.innerHTML = `<i class="fa-solid fa-file"></i> ${pageCount} পৃষ্ঠা (A4)`;
+    }
+
+    // If content spans more than 1 A4 page, show clear boundary markers
+    if (pageCount > 1) {
+      for (let p = 1; p < pageCount; p++) {
+        const topOffset = p * a4HeightPx;
+        const divider = document.createElement('div');
+        divider.className = 'preview-page-divider';
+        divider.style.top = `${topOffset}px`;
+        divider.innerHTML = `<span><i class="fa-solid fa-scissors"></i> পৃষ্ঠা ${p} সমাপ্ত • পৃষ্ঠা ${p + 1} শুরু (A4 Page Break)</span>`;
+        container.appendChild(divider);
+      }
+    }
+  });
 }
 
 function applyWatermarkToPreview() {
@@ -780,6 +814,15 @@ function attachEvents() {
       btnToggleEdit.style.background = '';
       btnToggleEdit.style.color = '';
       editLabel.innerText = 'সরাসরি পেপারে এডিট';
+      updatePageGuideAndCount();
+      refreshDocumentHash();
+    }
+  });
+
+  previewContainer.addEventListener('input', () => {
+    if (state.isDirectEdit) {
+      updatePageGuideAndCount();
+      refreshDocumentHash();
     }
   });
 
@@ -790,6 +833,8 @@ function attachEvents() {
     if (stamp) {
       stamp.style.display = state.showStamp ? 'flex' : 'none';
     }
+    updatePageGuideAndCount();
+    refreshDocumentHash();
   });
 
   // Stamp Duty Calculator Modal
@@ -1461,10 +1506,11 @@ function attachEvents() {
     btnInjectNotice.addEventListener('click', () => {
       if (!lastGeneratedNotice) return;
       const container = document.getElementById('preview-container');
-      container.innerHTML = '<div style="font-family: Hind Siliguri, sans-serif; padding: 20px; line-height: 1.8; color: #0f172a;"><div style="border-bottom: 2px solid #991b1b; padding-bottom: 8px; margin-bottom: 20px; text-align: center;"><h2 style="font-size: 18pt; color: #991b1b; margin: 0;">' + lastGeneratedNotice.title + '</h2><div style="font-size: 11pt; color: #475569; margin-top: 4px;">আইনি ও প্রথাগত উচ্ছেদ/নবায়ন নোটিশ</div></div><div style="font-weight: 700; color: #1e3a8a; margin-bottom: 14px;">' + lastGeneratedNotice.subject + '</div><div style="white-space: pre-wrap; font-size: 13pt; color: #1e293b;">' + lastGeneratedNotice.body + '</div><div style="margin-top: 30px; border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 9pt; color: #64748b; text-align: center;">SmartLegal AI Notice Engine • প্রস্তুতের তারিখ: ' + lastGeneratedNotice.date + '</div></div>';
+      container.innerHTML = '<div style="font-family: Hind Siliguri, sans-serif; line-height: 1.65; color: #0f172a;"><div style="border-bottom: 2px solid #991b1b; padding-bottom: 8px; margin-bottom: 20px; text-align: center;"><h2 style="font-size: 17pt; color: #991b1b; margin: 0;">' + lastGeneratedNotice.title + '</h2><div style="font-size: 10.5pt; color: #475569; margin-top: 4px;">আইনি ও প্রথাগত উচ্ছেদ/নবায়ন নোটিশ</div></div><div style="font-weight: 700; color: #1e3a8a; margin-bottom: 14px; font-size: 11.5pt;">' + lastGeneratedNotice.subject + '</div><div style="white-space: pre-wrap; font-size: 11pt; line-height: 1.65; color: #1e293b; text-align: justify;">' + lastGeneratedNotice.body + '</div><div style="margin-top: 30px; border-top: 1px dashed #cbd5e1; padding-top: 10px; font-size: 9pt; color: #64748b; text-align: center;">SmartLegal AI Notice Engine • প্রস্তুতের তারিখ: ' + lastGeneratedNotice.date + '</div></div>';
       noticeModal.style.display = 'none';
       applyWatermarkToPreview();
       refreshDocumentHash();
+      updatePageGuideAndCount();
     });
   }
 
@@ -1538,6 +1584,10 @@ function attachEvents() {
     }
   }, 3 * 60 * 1000);
 
+  // Re-calculate A4 preview boundaries on viewport/font resize
+  window.addEventListener('resize', () => {
+    updatePageGuideAndCount();
+  });
 }
 
 window.addEventListener('DOMContentLoaded', initApp);
