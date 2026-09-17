@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="{{ 'bn' if language == 'bn' else 'en' }}">
 <head>
   <meta charset="UTF-8">
@@ -157,22 +157,69 @@
     }
 
     .signatures-section {
-      margin-top: 45px;
+      margin-top: 50px;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
 
     .sig-row {
       display: flex;
       justify-content: space-between;
-      margin-top: 35px;
+      align-items: flex-end;
+      margin-top: 30px;
+      gap: 30px;
     }
 
-    .sig-box {
+    .sig-col, .sig-box {
+      flex: 1;
       width: 45%;
-      border-top: 1.5px solid #0f172a;
-      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       text-align: center;
-      font-size: 11.5pt;
+      min-width: 160px;
+      cursor: pointer;
+    }
+
+    .sig-image-wrap {
+      height: 55px;
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      margin-bottom: 5px;
+    }
+
+    .sig-image-wrap img {
+      max-height: 52px;
+      max-width: 180px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .sig-image-placeholder {
+      height: 45px;
+      width: 100%;
+      border: 1px dashed transparent;
+      transition: border-color 0.2s;
+    }
+
+    .sig-col:hover .sig-image-placeholder {
+      border-color: #94a3b8;
+      border-radius: 4px;
+    }
+
+    .sig-line {
+      width: 100%;
+      border-top: 1.5px solid #0f172a;
+      margin-bottom: 6px;
+    }
+
+    .sig-label {
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #0f172a;
     }
 
     .witness-section {

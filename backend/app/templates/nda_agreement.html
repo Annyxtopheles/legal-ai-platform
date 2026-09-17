@@ -1,4 +1,4 @@
-﻿{% extends 'base_document.html' %}
+{% extends 'base_document.html' %}
 
 {% block content %}
 <div class="doc-header">
@@ -79,19 +79,33 @@
 
 <div class="signatures-section">
   <div class="sig-row">
-    <div class="sig-box">
-      {% if data.party1_signature %}
-        <img src="{{ data.party1_signature }}" style="max-height: 48px; display: block; margin: 0 auto 6px auto;">
-      {% endif %}
-      <strong>{{ 'তথ্য প্রকাশকারী পক্ষের স্বাক্ষর' if language == 'bn' else 'For Disclosing Party' }}</strong><br>
-      {{ data.disclosing_party_name }}
+    <div class="sig-col" data-target-sign="p1" title="তথ্য প্রকাশকারী পক্ষের স্বাক্ষর দিন">
+      <div class="sig-image-wrap">
+        {% if data.party1_signature %}
+          <img src="{{ data.party1_signature }}" alt="তথ্য প্রকাশকারী পক্ষের স্বাক্ষর">
+        {% else %}
+          <div class="sig-image-placeholder"></div>
+        {% endif %}
+      </div>
+      <div class="sig-line"></div>
+      <div class="sig-label">
+        <strong>{{ 'তথ্য প্রকাশকারী পক্ষের স্বাক্ষর' if language == 'bn' else 'For Disclosing Party' }}</strong><br>
+        <span>{{ data.disclosing_party_name }}</span>
+      </div>
     </div>
-    <div class="sig-box">
-      {% if data.party2_signature %}
-        <img src="{{ data.party2_signature }}" style="max-height: 48px; display: block; margin: 0 auto 6px auto;">
-      {% endif %}
-      <strong>{{ 'তথ্য গ্রহণকারী পক্ষের স্বাক্ষর' if language == 'bn' else 'For Receiving Party' }}</strong><br>
-      {{ data.receiving_party_name }}
+    <div class="sig-col" data-target-sign="p2" title="তথ্য গ্রহণকারী পক্ষের স্বাক্ষর দিন">
+      <div class="sig-image-wrap">
+        {% if data.party2_signature %}
+          <img src="{{ data.party2_signature }}" alt="তথ্য গ্রহণকারী পক্ষের স্বাক্ষর">
+        {% else %}
+          <div class="sig-image-placeholder"></div>
+        {% endif %}
+      </div>
+      <div class="sig-line"></div>
+      <div class="sig-label">
+        <strong>{{ 'তথ্য গ্রহণকারী পক্ষের স্বাক্ষর' if language == 'bn' else 'For Receiving Party' }}</strong><br>
+        <span>{{ data.receiving_party_name }}</span>
+      </div>
     </div>
   </div>
 </div>

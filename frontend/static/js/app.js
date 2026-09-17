@@ -181,14 +181,8 @@ async function loadSharedContractForSigning(shareId) {
       
       // Auto prompt 2nd party to sign
       setTimeout(() => {
-        state.sigTarget = 'p2';
-        const p1 = document.getElementById('sign-target-p1');
-        const p2 = document.getElementById('sign-target-p2');
-        if (p1) p1.className = 'btn btn-secondary';
-        if (p2) p2.className = 'btn btn-primary';
-        const signModal = document.getElementById('sign-modal');
-        if (signModal) signModal.style.display = 'flex';
-      }, 700);
+        openSignModal('p2');
+      }, 600);
     } else {
       alert('শেয়ারকৃত চুক্তিপত্রটি পাওয়া যায়নি বা লিংকটি সঠিক নয়।');
     }
@@ -293,6 +287,7 @@ async function triggerDocumentRender() {
       }
 
       attachClauseExplainerButtons();
+      attachSignatureBoxClicks();
       applyWatermarkToPreview();
       refreshDocumentHash();
     }
@@ -390,6 +385,103 @@ window.deleteCustomClause = function(idx) {
   triggerDocumentRender();
 };
 
+function getPartyLabels() {
+  const tmpl = state.currentTemplate;
+  if (tmpl === 'employment_agreement') {
+    return { p1: 'কোম্পানি / মালিক', p2: 'কর্মচারী' };
+  } else if (tmpl === 'freelance_contract') {
+    return { p1: 'গ্রাহক (Client)', p2: 'ফ্রিল্যান্সার' };
+  } else if (tmpl === 'partnership_agreement') {
+    return { p1: '১ম অংশীদার', p2: '২য় অংশীদার' };
+  } else if (tmpl === 'nda_agreement') {
+    return { p1: 'তথ্য প্রকাশকারী', p2: 'তথ্য গ্রহণকারী' };
+  }
+  return { p1: '১ম পক্ষ (মালিক)', p2: '২য় পক্ষ (ভাড়াটিয়া)' };
+}
+
+function selectSignParty(party) {
+  state.sigTarget = party;
+  const labels = getPartyLabels();
+  const targetP1 = document.getElementById('sign-target-p1');
+  const targetP2 = document.getElementById('sign-target-p2');
+  const p1Badge = document.getElementById('p1-status-badge');
+  const p2Badge = document.getElementById('p2-status-badge');
+  const signerNameEl = document.getElementById('current-signer-name');
+  const existingBox = document.getElementById('existing-sig-box');
+  const existingImg = document.getElementById('existing-sig-img');
+
+  const p1Signed = !!state.formData.party1_signature;
+  const p2Signed = !!state.formData.party2_signature;
+
+  if (p1Badge) {
+    p1Badge.innerHTML = p1Signed ? '<i class="fa-solid fa-check"></i> স্বাক্ষরিত' : 'স্বাক্ষর বাকি';
+    p1Badge.style.background = p1Signed ? '#16a34a' : (party === 'p1' ? 'rgba(255,255,255,0.25)' : '#e2e8f0');
+    p1Badge.style.color = p1Signed ? '#ffffff' : (party === 'p1' ? '#ffffff' : '#475569');
+  }
+  if (p2Badge) {
+    p2Badge.innerHTML = p2Signed ? '<i class="fa-solid fa-check"></i> স্বাক্ষরিত' : 'স্বাক্ষর বাকি';
+    p2Badge.style.background = p2Signed ? '#16a34a' : (party === 'p2' ? 'rgba(255,255,255,0.25)' : '#e2e8f0');
+    p2Badge.style.color = p2Signed ? '#ffffff' : (party === 'p2' ? '#ffffff' : '#475569');
+  }
+
+  if (party === 'p1') {
+    if (targetP1) targetP1.className = 'btn btn-primary';
+    if (targetP2) targetP2.className = 'btn btn-secondary';
+    if (signerNameEl) signerNameEl.textContent = labels.p1;
+    if (p1Signed && existingBox && existingImg) {
+      existingBox.style.display = 'flex';
+      existingImg.src = state.formData.party1_signature;
+    } else if (existingBox) {
+      existingBox.style.display = 'none';
+    }
+  } else {
+    if (targetP2) targetP2.className = 'btn btn-primary';
+    if (targetP1) targetP1.className = 'btn btn-secondary';
+    if (signerNameEl) signerNameEl.textContent = labels.p2;
+    if (p2Signed && existingBox && existingImg) {
+      existingBox.style.display = 'flex';
+      existingImg.src = state.formData.party2_signature;
+    } else if (existingBox) {
+      existingBox.style.display = 'none';
+    }
+  }
+
+  const canvas = document.getElementById('sig-canvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+function openSignModal(targetParty = null) {
+  const labels = getPartyLabels();
+  const labelP1 = document.getElementById('label-p1-btn');
+  const labelP2 = document.getElementById('label-p2-btn');
+  if (labelP1) labelP1.textContent = labels.p1;
+  if (labelP2) labelP2.textContent = labels.p2;
+
+  let chosen = targetParty;
+  if (!chosen) {
+    if (state.formData.party1_signature && !state.formData.party2_signature) {
+      chosen = 'p2';
+    } else {
+      chosen = 'p1';
+    }
+  }
+
+  selectSignParty(chosen);
+  document.getElementById('sign-modal').style.display = 'flex';
+}
+
+function attachSignatureBoxClicks() {
+  document.querySelectorAll('#preview-container .sig-col').forEach(col => {
+    col.addEventListener('click', () => {
+      const target = col.getAttribute('data-target-sign') || 'p1';
+      openSignModal(target);
+    });
+  });
+}
+
 function initSignatureCanvas() {
   const canvas = document.getElementById('sig-canvas');
   if (!canvas) return;
@@ -401,8 +493,8 @@ function initSignatureCanvas() {
 
   function getPos(e) {
     const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
     return {
       x: (clientX - rect.left) * (canvas.width / rect.width),
       y: (clientY - rect.top) * (canvas.height / rect.height)
@@ -421,7 +513,6 @@ function initSignatureCanvas() {
     const pos = getPos(e);
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
-    e.preventDefault();
   }
 
   function stopDraw() {
@@ -432,9 +523,19 @@ function initSignatureCanvas() {
   canvas.addEventListener('mousemove', draw);
   window.addEventListener('mouseup', stopDraw);
 
-  canvas.addEventListener('touchstart', startDraw, { passive: false });
-  canvas.addEventListener('touchmove', draw, { passive: false });
-  window.addEventListener('touchend', stopDraw);
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    startDraw(e);
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    draw(e);
+  }, { passive: false });
+
+  window.addEventListener('touchend', () => {
+    stopDraw();
+  });
 
   document.getElementById('btn-clear-canvas').addEventListener('click', () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -442,60 +543,68 @@ function initSignatureCanvas() {
 
   const targetP1 = document.getElementById('sign-target-p1');
   const targetP2 = document.getElementById('sign-target-p2');
+  if (targetP1) targetP1.addEventListener('click', () => { selectSignParty('p1'); });
+  if (targetP2) targetP2.addEventListener('click', () => { selectSignParty('p2'); });
 
-  targetP1.addEventListener('click', () => {
-    state.sigTarget = 'p1';
-    targetP1.className = 'btn btn-primary';
-    targetP2.className = 'btn btn-secondary';
-  });
-
-  targetP2.addEventListener('click', () => {
-    state.sigTarget = 'p2';
-    targetP2.className = 'btn btn-primary';
-    targetP1.className = 'btn btn-secondary';
-  });
+  const btnRemoveSig = document.getElementById('btn-remove-sig');
+  if (btnRemoveSig) {
+    btnRemoveSig.addEventListener('click', () => {
+      if (state.sigTarget === 'p1') {
+        delete state.formData.party1_signature;
+      } else {
+        delete state.formData.party2_signature;
+      }
+      selectSignParty(state.sigTarget);
+      triggerDocumentRender();
+    });
+  }
 
   document.getElementById('btn-apply-signature').addEventListener('click', async () => {
-    const dataUrl = canvas.toDataURL('image/png');
-    if (state.sigTarget === 'p1') {
-      state.formData.party1_signature = dataUrl;
-    } else {
-      state.formData.party2_signature = dataUrl;
-    }
+    // Check if user drew on canvas
+    const pixelBuffer = new Uint32Array(
+      ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer
+    );
+    const hasDrawn = pixelBuffer.some(color => color !== 0);
 
-    const btn = document.getElementById('btn-apply-signature');
-    const origText = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> স্বাক্ষর সেভ হচ্ছে...';
-    btn.disabled = true;
+    if (hasDrawn) {
+      const dataUrl = canvas.toDataURL('image/png');
+      if (state.sigTarget === 'p1') {
+        state.formData.party1_signature = dataUrl;
+      } else {
+        state.formData.party2_signature = dataUrl;
+      }
 
-    // If in remote signing mode or has contract ID, submit back to server
-    if (state.currentContractId) {
-      try {
-        const res = await fetch(`/api/contracts/share/${state.currentContractId}/sign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            signature_data: dataUrl,
-            target: state.sigTarget === 'p1' ? 'party1' : 'party2'
-          })
-        });
-        if (res.ok) {
-          alert('✅ স্বাক্ষর সফলভাবে সংরক্ষিত হয়েছে এবং চুক্তিপত্রে যুক্ত হয়েছে!');
-        } else {
-          alert('স্বাক্ষর সার্ভারে সংরক্ষণ করতে সমস্যা হয়েছে।');
+      // If in remote signing mode or has contract ID, submit back to server
+      if (state.currentContractId) {
+        try {
+          await fetch(`/api/contracts/share/${state.currentContractId}/sign`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              signature_data: dataUrl,
+              target: state.sigTarget === 'p1' ? 'party1' : 'party2'
+            })
+          });
+        } catch (e) {
+          console.error('Remote signature error:', e);
         }
-      } catch (e) {
-        console.error('Remote signature error:', e);
-        alert('স্বাক্ষর পাঠাতে সমস্যা হয়েছে: ' + e.message);
       }
     }
 
-    btn.innerHTML = origText;
-    btn.disabled = false;
-
-    triggerDocumentRender();
+    await triggerDocumentRender();
     document.getElementById('sign-modal').style.display = 'none';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Scroll directly to the signature block on the preview document
+    setTimeout(() => {
+      const sigSec = document.querySelector('.signatures-section');
+      if (sigSec) {
+        sigSec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        sigSec.style.transition = 'background 0.4s';
+        sigSec.style.background = '#f0fdf4';
+        setTimeout(() => { sigSec.style.background = 'transparent'; }, 1200);
+      }
+    }, 250);
   });
 }
 
@@ -839,10 +948,9 @@ function attachEvents() {
 
   // History & Sign buttons
   document.getElementById('btn-history').addEventListener('click', openHistoryModal);
-  const openSign = () => { document.getElementById('sign-modal').style.display = 'flex'; };
-  document.getElementById('btn-open-sign').addEventListener('click', openSign);
+  document.getElementById('btn-open-sign').addEventListener('click', () => openSignModal());
   const step4SignBtn = document.getElementById('btn-step4-sign');
-  if (step4SignBtn) step4SignBtn.addEventListener('click', openSign);
+  if (step4SignBtn) step4SignBtn.addEventListener('click', () => openSignModal());
 
   // Upload Audit
   document.getElementById('btn-upload-audit').addEventListener('click', () => {

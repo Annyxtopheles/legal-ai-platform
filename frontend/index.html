@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SmartLegal AI - আইনি অটোমেশন ও ডকুমেন্ট জেনারেটর</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=3.5.4">
+  <link rel="stylesheet" href="/static/css/style.css?v=3.5.5">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -315,13 +315,38 @@
       </div>
       <div class="modal-body">
         <div style="margin-bottom: 12px; display: flex; gap: 10px;">
-          <button class="btn btn-primary" id="sign-target-p1" style="flex: 1; font-size: 0.85rem;">১ম পক্ষ (মালিক/ক্লায়েন্ট)</button>
-          <button class="btn btn-secondary" id="sign-target-p2" style="flex: 1; font-size: 0.85rem;">২য় পক্ষ (ভাড়াটিয়া/কর্মী)</button>
+          <button class="btn btn-primary" id="sign-target-p1" style="flex: 1; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;">
+            <span id="label-p1-btn">১ম পক্ষ (মালিক)</span>
+            <span id="p1-status-badge" style="font-size: 0.72rem; background: rgba(255,255,255,0.25); padding: 2px 6px; border-radius: 10px;">স্বাক্ষর বাকি</span>
+          </button>
+          <button class="btn btn-secondary" id="sign-target-p2" style="flex: 1; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;">
+            <span id="label-p2-btn">২য় পক্ষ (ভাড়াটিয়া)</span>
+            <span id="p2-status-badge" style="font-size: 0.72rem; background: #e2e8f0; color: #475569; padding: 2px 6px; border-radius: 10px;">স্বাক্ষর বাকি</span>
+          </button>
         </div>
-        <div style="position: relative; border: 2px dashed #94a3b8; border-radius: 8px; background: #fafafa; overflow: hidden;">
+
+        <div id="active-signer-info" style="font-size: 0.83rem; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+          <span>বর্তমানে স্বাক্ষর করছেন: <strong id="current-signer-name">১ম পক্ষ</strong></span>
+          <span style="font-size: 0.75rem; color: #3b82f6;">মাউস বা আঙুল দিয়ে নিচের প্যাডে সই করুন</span>
+        </div>
+
+        <div id="existing-sig-box" style="display: none; margin-bottom: 8px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="color: #64748b;">বর্তমান স্বাক্ষর:</span>
+            <img id="existing-sig-img" src="" style="max-height: 36px; max-width: 140px; background: white; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 6px;">
+          </div>
+          <button id="btn-remove-sig" class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.75rem; color: #ef4444; border-color: #fca5a5;">
+            <i class="fa-solid fa-trash"></i> মুছে নতুন সই দিন
+          </button>
+        </div>
+
+        <div style="position: relative; border: 2px dashed #94a3b8; border-radius: 8px; background: #ffffff; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);">
           <canvas id="sig-canvas" width="480" height="160" style="display: block; width: 100%; height: 160px; cursor: crosshair; touch-action: none;"></canvas>
-          <button id="btn-clear-canvas" style="position: absolute; top: 8px; right: 8px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; cursor: pointer;">
-            <i class="fa-solid fa-eraser"></i> মুছুন
+          <div style="position: absolute; bottom: 8px; left: 12px; font-size: 0.74rem; color: #94a3b8; pointer-events: none;">
+            <i class="fa-solid fa-signature"></i> স্বাক্ষর লাইন
+          </div>
+          <button id="btn-clear-canvas" style="position: absolute; top: 8px; right: 8px; background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; cursor: pointer; color: #475569;">
+            <i class="fa-solid fa-eraser"></i> পরিষ্কার
           </button>
         </div>
       </div>
@@ -507,6 +532,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=3.5.4"></script>
+  <script src="/static/js/app.js?v=3.5.5"></script>
 </body>
 </html>

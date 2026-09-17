@@ -1,4 +1,4 @@
-﻿{% extends 'base_document.html' %}
+{% extends 'base_document.html' %}
 
 {% block content %}
 <div class="doc-header">
@@ -90,19 +90,33 @@
 
 <div class="signatures-section">
   <div class="sig-row">
-    <div class="sig-box">
-      {% if data.party1_signature %}
-        <img src="{{ data.party1_signature }}" style="max-height: 48px; display: block; margin: 0 auto 6px auto;">
-      {% endif %}
-      <strong>{{ '১ম অংশীদারের স্বাক্ষর' if language == 'bn' else 'First Partner Signature' }}</strong><br>
-      {{ data.partner1_name }}
+    <div class="sig-col" data-target-sign="p1" title="১ম অংশীদারের স্বাক্ষর দিন">
+      <div class="sig-image-wrap">
+        {% if data.party1_signature %}
+          <img src="{{ data.party1_signature }}" alt="১ম অংশীদারের স্বাক্ষর">
+        {% else %}
+          <div class="sig-image-placeholder"></div>
+        {% endif %}
+      </div>
+      <div class="sig-line"></div>
+      <div class="sig-label">
+        <strong>{{ '১ম অংশীদারের স্বাক্ষর' if language == 'bn' else 'First Partner Signature' }}</strong><br>
+        <span>{{ data.partner1_name }}</span>
+      </div>
     </div>
-    <div class="sig-box">
-      {% if data.party2_signature %}
-        <img src="{{ data.party2_signature }}" style="max-height: 48px; display: block; margin: 0 auto 6px auto;">
-      {% endif %}
-      <strong>{{ '২য় অংশীদারের স্বাক্ষর' if language == 'bn' else 'Second Partner Signature' }}</strong><br>
-      {{ data.partner2_name }}
+    <div class="sig-col" data-target-sign="p2" title="২য় অংশীদারের স্বাক্ষর দিন">
+      <div class="sig-image-wrap">
+        {% if data.party2_signature %}
+          <img src="{{ data.party2_signature }}" alt="২য় অংশীদারের স্বাক্ষর">
+        {% else %}
+          <div class="sig-image-placeholder"></div>
+        {% endif %}
+      </div>
+      <div class="sig-line"></div>
+      <div class="sig-label">
+        <strong>{{ '২য় অংশীদারের স্বাক্ষর' if language == 'bn' else 'Second Partner Signature' }}</strong><br>
+        <span>{{ data.partner2_name }}</span>
+      </div>
     </div>
   </div>
 </div>
