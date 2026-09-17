@@ -172,19 +172,29 @@ async function loadSharedContractForSigning(shareId) {
       const item = await res.json();
       state.currentContractId = item.id;
       state.currentTemplate = item.document_type;
-      document.getElementById('template-select').value = item.document_type;
+      state.currentLang = item.language || 'bn';
+      const tmplSelect = document.getElementById('template-select');
+      if (tmplSelect) tmplSelect.value = item.document_type;
+      const langSelect = document.getElementById('lang-select');
+      if (langSelect) langSelect.value = state.currentLang;
       setupTemplate(item.document_type, item.data);
       
       // Auto prompt 2nd party to sign
       setTimeout(() => {
         state.sigTarget = 'p2';
-        document.getElementById('sign-target-p2').className = 'btn btn-primary';
-        document.getElementById('sign-target-p1').className = 'btn btn-secondary';
-        document.getElementById('sign-modal').style.display = 'flex';
-      }, 600);
+        const p1 = document.getElementById('sign-target-p1');
+        const p2 = document.getElementById('sign-target-p2');
+        if (p1) p1.className = 'btn btn-secondary';
+        if (p2) p2.className = 'btn btn-primary';
+        const signModal = document.getElementById('sign-modal');
+        if (signModal) signModal.style.display = 'flex';
+      }, 700);
+    } else {
+      alert('শেয়ারকৃত চুক্তিপত্রটি পাওয়া যায়নি বা লিংকটি সঠিক নয়।');
     }
   } catch (e) {
     console.error('Failed to load shared contract:', e);
+    alert('চুক্তিপত্র লোড করতে ব্যর্থ হয়েছে: ' + e.message);
   }
 }
 
@@ -453,14 +463,35 @@ function initSignatureCanvas() {
       state.formData.party2_signature = dataUrl;
     }
 
-    // If in remote signing mode, submit back to server
+    const btn = document.getElementById('btn-apply-signature');
+    const origText = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> স্বাক্ষর সেভ হচ্ছে...';
+    btn.disabled = true;
+
+    // If in remote signing mode or has contract ID, submit back to server
     if (state.currentContractId) {
-      fetch(`/api/contracts/share/${state.currentContractId}/sign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature_data: dataUrl, target: state.sigTarget === 'p1' ? 'party1' : 'party2' })
-      });
+      try {
+        const res = await fetch(`/api/contracts/share/${state.currentContractId}/sign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            signature_data: dataUrl,
+            target: state.sigTarget === 'p1' ? 'party1' : 'party2'
+          })
+        });
+        if (res.ok) {
+          alert('✅ স্বাক্ষর সফলভাবে সংরক্ষিত হয়েছে এবং চুক্তিপত্রে যুক্ত হয়েছে!');
+        } else {
+          alert('স্বাক্ষর সার্ভারে সংরক্ষণ করতে সমস্যা হয়েছে।');
+        }
+      } catch (e) {
+        console.error('Remote signature error:', e);
+        alert('স্বাক্ষর পাঠাতে সমস্যা হয়েছে: ' + e.message);
+      }
     }
+
+    btn.innerHTML = origText;
+    btn.disabled = false;
 
     triggerDocumentRender();
     document.getElementById('sign-modal').style.display = 'none';
@@ -692,11 +723,17 @@ function attachEvents() {
 
   // Share & Remote Signing Modal
   document.getElementById('btn-share-contract').addEventListener('click', async () => {
-    // If not yet saved to DB, save now to generate ID
-    if (!state.currentContractId) {
+    const btn = document.getElementById('btn-share-contract');
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> শেয়ার লিংক তৈরি হচ্ছে...';
+    btn.disabled = true;
+
+    try {
       state.formData.custom_clauses = state.customClauses;
       const currentMeta = state.templates.find(t => t.id === state.currentTemplate);
+      const title = `${currentMeta ? (state.currentLang === 'bn' ? currentMeta.title_bn : currentMeta.title_en) : 'চুক্তিপত্র'} - ${new Date().toLocaleDateString('bn-BD')}`;
       const vaultId = getVaultSessionId();
+
       const res = await fetch('/api/contracts', {
         method: 'POST',
         headers: {
@@ -704,7 +741,7 @@ function attachEvents() {
           'X-Session-ID': vaultId
         },
         body: JSON.stringify({
-          id: null,
+          id: state.currentContractId || null,
           owner_id: vaultId,
           title: title,
           document_type: state.currentTemplate,
@@ -712,20 +749,39 @@ function attachEvents() {
           data: state.formData
         })
       });
+
+      if (!res.ok) {
+        throw new Error('সার্ভারে চুক্তি সংরক্ষণ ব্যর্থ হয়েছে');
+      }
+
       const resData = await res.json();
       state.currentContractId = resData.id;
-    }
 
-    const shareUrl = `${window.location.origin}/?share_id=${state.currentContractId}`;
-    document.getElementById('share-url-input').value = shareUrl;
-    document.getElementById('btn-whatsapp-share').href = `https://api.whatsapp.com/send?text=${encodeURIComponent('SmartLegal AI এর মাধ্যমে আপনার চুক্তিপত্রে স্বাক্ষরের আমন্ত্রণ: ' + shareUrl)}`;
-    document.getElementById('share-modal').style.display = 'flex';
+      const shareUrl = `${window.location.origin}/?share_id=${state.currentContractId}`;
+      document.getElementById('share-url-input').value = shareUrl;
+      document.getElementById('btn-whatsapp-share').href = `https://api.whatsapp.com/send?text=${encodeURIComponent('SmartLegal AI এর মাধ্যমে আপনার চুক্তিপত্রে স্বাক্ষরের আমন্ত্রণ: ' + shareUrl)}`;
+      document.getElementById('share-modal').style.display = 'flex';
+    } catch (err) {
+      alert('শেয়ার লিংক তৈরি করতে সমস্যা হয়েছে: ' + err.message);
+    } finally {
+      btn.innerHTML = origHtml;
+      btn.disabled = false;
+    }
   });
 
   document.getElementById('btn-copy-share-url').addEventListener('click', () => {
     const input = document.getElementById('share-url-input');
     input.select();
-    navigator.clipboard.writeText(input.value);
+    input.setSelectionRange(0, 99999);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value);
+      } else {
+        document.execCommand('copy');
+      }
+    } catch (_) {
+      document.execCommand('copy');
+    }
     const btn = document.getElementById('btn-copy-share-url');
     btn.innerHTML = '<i class="fa-solid fa-check"></i> কপিড!';
     setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-copy"></i> কপি'; }, 1500);

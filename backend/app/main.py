@@ -271,6 +271,7 @@ async def get_shared_contract(contract_id: str):
         "id": item["id"],
         "title": item["title"],
         "document_type": item["document_type"],
+        "language": item.get("language", "bn"),
         "rendered_html": html,
         "data": item["data"]
     }
