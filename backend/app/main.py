@@ -4,10 +4,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Response, Request
+from fastapi import FastAPI, HTTPException, Response, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
+from app.services.document_parser import extract_text_from_bytes
 from app.config import FRONTEND_DIR, STATIC_DIR, PORT, HOST
 from app.schemas.document_schemas import (
     RefineClauseRequest, RefineClauseResponse,
@@ -168,6 +169,38 @@ async def calculate_stamp(req: StampCalculateRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Extract Text from Uploaded Documents (PDF, DOCX, TXT)
+@app.post("/api/tools/extract-file-text")
+async def extract_file_text_endpoint(file: UploadFile = File(...)):
+    try:
+        content_bytes = await file.read()
+        if not content_bytes:
+            raise HTTPException(status_code=400, detail="ফাইলটিতে কোনো তথ্য পাওয়া যায়নি।")
+        if len(content_bytes) > 15 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="ফাইলের সাইজ ১৫ মেগাবাইটের বেশি হতে পারবে না।")
+
+        filename = file.filename or "uploaded_document.txt"
+        extracted_text, detected_format = extract_text_from_bytes(content_bytes, filename)
+
+        if not extracted_text or not extracted_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="ফাইলটি থেকে কোনো টেক্সট পড়া যায়নি। ফাইলটি স্ক্যান করা ইমেজ বা পাসওয়ার্ড প্রটেক্টেড কিনা যাচাই করুন।"
+            )
+
+        return {
+            "success": True,
+            "filename": filename,
+            "detected_format": detected_format,
+            "extracted_text": extracted_text.strip(),
+            "character_count": len(extracted_text.strip()),
+            "word_count": len(extracted_text.strip().split())
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ফাইল প্রক্রিয়াকরণে ত্রুটি: {str(e)}")
 
 # Legal Notice Generator
 @app.post("/api/tools/generate-notice", response_model=GenerateNoticeResponse)

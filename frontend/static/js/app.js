@@ -849,56 +849,155 @@ function attachEvents() {
     document.getElementById('upload-modal').style.display = 'flex';
   });
 
-  document.getElementById('upload-file-input').addEventListener('change', (e) => {
+  const uploadFileInput = document.getElementById('upload-file-input');
+  const uploadTextInput = document.getElementById('upload-text-input');
+  const uploadStatus = document.getElementById('upload-file-status');
+  const btnRunAudit = document.getElementById('btn-run-upload-audit');
+
+  uploadFileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (file) {
+    if (!file) return;
+
+    state.uploadedFileName = file.name;
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    // Plain text files can be read directly in the browser
+    if (ext === 'txt' || ext === 'md') {
       const reader = new FileReader();
-      reader.onload = (evt) => { document.getElementById('upload-text-input').value = evt.target.result; };
+      reader.onload = (evt) => {
+        uploadTextInput.value = evt.target.result;
+        uploadTextInput.disabled = false;
+        btnRunAudit.disabled = false;
+        uploadStatus.style.display = 'block';
+        uploadStatus.style.background = '#f0fdf4';
+        uploadStatus.style.color = '#166534';
+        uploadStatus.style.border = '1px solid #bbf7d0';
+        uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check"></i> <strong>${file.name}</strong> টেক্সট ফাইল লোড সম্পন্ন হয়েছে (${uploadTextInput.value.length} অক্ষর)।`;
+      };
       reader.readAsText(file);
+      return;
+    }
+
+    // Binary documents (PDF, DOCX, DOC) must be extracted cleanly via backend
+    uploadStatus.style.display = 'block';
+    uploadStatus.style.background = '#eff6ff';
+    uploadStatus.style.color = '#1e40af';
+    uploadStatus.style.border = '1px solid #bfdbfe';
+    uploadStatus.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <strong>${file.name}</strong> ফাইল থেকে টেক্সট এক্সট্র্যাক্ট করা হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন...`;
+    uploadTextInput.value = `[ফাইল বিশ্লেষণ চলছে: ${file.name}...\nঅনুগ্রহ করে অপেক্ষা করুন...]`;
+    uploadTextInput.disabled = true;
+    btnRunAudit.disabled = true;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/tools/extract-file-text', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'ফাইল থেকে টেক্সট এক্সট্র্যাক্ট করা সম্ভব হয়নি।');
+      }
+
+      uploadTextInput.value = data.extracted_text;
+      uploadTextInput.disabled = false;
+      btnRunAudit.disabled = false;
+
+      uploadStatus.style.display = 'block';
+      uploadStatus.style.background = '#f0fdf4';
+      uploadStatus.style.color = '#166534';
+      uploadStatus.style.border = '1px solid #bbf7d0';
+      uploadStatus.innerHTML = `<i class="fa-solid fa-circle-check"></i> <strong>${data.filename}</strong> (${data.detected_format.toUpperCase()}) থেকে ${data.character_count.toLocaleString('bn-BD')} টি অক্ষর সফলভাবে এক্সট্র্যাক্ট করা হয়েছে!`;
+    } catch (err) {
+      console.error('File extraction error:', err);
+      uploadTextInput.value = '';
+      uploadTextInput.disabled = false;
+      btnRunAudit.disabled = false;
+
+      uploadStatus.style.display = 'block';
+      uploadStatus.style.background = '#fef2f2';
+      uploadStatus.style.color = '#991b1b';
+      uploadStatus.style.border = '1px solid #fecaca';
+      uploadStatus.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${err.message || 'ফাইল প্রসেস করতে ব্যর্থ হয়েছে। সরাসরি টেক্সট কপি করে পেস্ট করুন।'}`;
     }
   });
 
-  document.getElementById('btn-run-upload-audit').addEventListener('click', async () => {
-    const text = document.getElementById('upload-text-input').value.trim();
-    if (!text) return alert('অনুগ্রহ করে টেক্সট বা ফাইল প্রদান করুন।');
+  btnRunAudit.addEventListener('click', async () => {
+    const text = uploadTextInput.value.trim();
+    if (!text || text.startsWith('[ফাইল বিশ্লেষণ চলছে')) {
+      return alert('অনুগ্রহ করে বৈধ টেক্সট বা ফাইল প্রদান করুন।');
+    }
 
-    const btn = document.getElementById('btn-run-upload-audit');
-    const oldText = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> অডিট চলছে...';
-    btn.disabled = true;
+    const oldText = btnRunAudit.innerHTML;
+    btnRunAudit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI গভীর অডিট বিশ্লেষণ চলছে...';
+    btnRunAudit.disabled = true;
 
     try {
+      const filename = state.uploadedFileName || 'Uploaded_Document.docx';
       const res = await fetch('/api/ai/audit-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_text: text, filename: 'Uploaded_Contract.txt' })
+        body: JSON.stringify({ raw_text: text, filename: filename })
       });
+      if (!res.ok) throw new Error('সার্ভারে অডিট রিকোয়েস্ট ব্যর্থ হয়েছে।');
       const data = await res.json();
       const resContainer = document.getElementById('upload-audit-result');
       resContainer.style.display = 'block';
 
+      const risksHtml = (data.risks_found && data.risks_found.length > 0)
+        ? data.risks_found.map(r => `
+          <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 10px; border-radius: 0 6px 6px 0; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <strong style="font-size: 0.85rem; color: #991b1b;">${r.clause_topic || 'ঝুঁকিপূর্ণ ধারা'}</strong>
+              <span class="badge ${r.severity === 'high' ? 'badge-high' : (r.severity === 'medium' ? 'badge-medium' : 'badge-low')}">
+                ${r.severity === 'high' ? 'উচ্চ ঝুঁকি' : (r.severity === 'medium' ? 'মাঝারি ঝুঁকি' : 'সাধারণ সতর্কতা')}
+              </span>
+            </div>
+            <p style="font-size: 0.82rem; color: #7f1d1d; margin: 4px 0;">${r.issue}</p>
+            <div style="font-size: 0.8rem; color: #1e40af; background: #eff6ff; padding: 6px 8px; border-radius: 4px; margin-top: 4px;">
+              <strong>পরামর্শ:</strong> ${r.recommendation}
+            </div>
+          </div>
+        `).join('')
+        : '<p style="font-size: 0.82rem; color: #166534;">কোনো উচ্চ ঝুঁকি পাওয়া যায়নি।</p>';
+
+      const missingHtml = (data.missing_clauses && data.missing_clauses.length > 0)
+        ? `
+          <h4 style="font-size: 0.88rem; color: #b45309; margin: 12px 0 6px 0; display: flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-triangle-exclamation"></i> মিসিং বা অনুপস্থিত আবশ্যকীয় সুরক্ষাধারা:
+          </h4>
+          <ul style="padding-left: 20px; font-size: 0.82rem; color: #92400e; margin: 0 0 10px 0;">
+            ${data.missing_clauses.map(m => `<li style="margin-bottom: 4px;">${m}</li>`).join('')}
+          </ul>
+        `
+        : '';
+
       resContainer.innerHTML = `
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <strong style="color: #1e3a8a;">${data.detected_type}</strong>
-            <span class="badge ${data.score >= 80 ? 'badge-low' : 'badge-medium'}">নিরাপত্তা স্কোর: ${data.score}/100</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+            <strong style="color: #1e3a8a; font-size: 0.95rem;">
+              <i class="fa-solid fa-scale-balanced"></i> ${data.detected_type || 'শনাক্তকৃত চুক্তিপত্র'}
+            </strong>
+            <span class="badge ${data.score >= 80 ? 'badge-low' : (data.score >= 60 ? 'badge-medium' : 'badge-high')}">
+              নিরাপত্তা স্কোর: ${data.score}/100
+            </span>
           </div>
-          <p style="font-size: 0.88rem; color: #334155;">${data.summary}</p>
+          <p style="font-size: 0.88rem; color: #334155; line-height: 1.5; margin: 0;">${data.summary}</p>
         </div>
-        <h4 style="font-size: 0.9rem; color: #0f172a; margin-bottom: 8px;">চিহ্নিত ঝুঁকিপূর্ণ শর্ত:</h4>
-        ${data.risks_found.map(r => `
-          <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 10px; border-radius: 0 6px 6px 0; margin-bottom: 8px;">
-            <strong style="font-size: 0.85rem; color: #991b1b;">${r.clause_topic}</strong>
-            <p style="font-size: 0.82rem; color: #7f1d1d; margin: 4px 0;">${r.issue}</p>
-            <span style="font-size: 0.8rem; color: #1e40af;"><strong>পরামর্শ:</strong> ${r.recommendation}</span>
-          </div>
-        `).join('')}
+        <h4 style="font-size: 0.9rem; color: #0f172a; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-shield-halved" style="color: #ef4444;"></i> চিহ্নিত ঝুঁকিপূর্ণ শর্তসমূহ:
+        </h4>
+        ${risksHtml}
+        ${missingHtml}
       `;
     } catch (err) {
-      alert('অডিট করতে সমস্যা হয়েছে।');
+      alert('অডিট করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
     } finally {
-      btn.innerHTML = oldText;
-      btn.disabled = false;
+      btnRunAudit.innerHTML = oldText;
+      btnRunAudit.disabled = false;
     }
   });
 

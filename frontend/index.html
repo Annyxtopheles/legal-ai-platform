@@ -362,11 +362,25 @@
         <button id="close-upload" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #64748b; padding: 4px;">✕</button>
       </div>
       <div class="modal-body">
-        <div class="form-group">
-          <input type="file" id="upload-file-input" accept=".txt,.pdf,.doc,.docx" style="margin-bottom: 8px; font-size: 0.85rem;">
-          <textarea id="upload-text-input" class="form-textarea" rows="6" placeholder="চুক্তিপত্রের সম্পূর্ণ টেক্সট এখানে পেস্ট করুন..."></textarea>
+        <div style="background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 0.82rem; font-weight: 600; color: #334155;">
+              <i class="fa-solid fa-cloud-arrow-up" style="color: #7c3aed;"></i> চুক্তিপত্র ফাইল আপলোড করুন (PDF, DOCX, TXT):
+            </label>
+            <span style="font-size: 0.75rem; color: #64748b;">সর্বোচ্চ ১৫ মেগাবাইট</span>
+          </div>
+          <input type="file" id="upload-file-input" accept=".txt,.pdf,.doc,.docx" style="width: 100%; font-size: 0.82rem; color: #334155;">
+          <div id="upload-file-status" style="display: none; margin-top: 8px; font-size: 0.82rem; padding: 6px 10px; border-radius: 6px;"></div>
         </div>
-        <button class="btn btn-ai" id="btn-run-upload-audit" style="width: 100%;">
+
+        <div class="form-group">
+          <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
+            অথবা চুক্তিপত্রের সম্পূর্ণ টেক্সট নিচে পেস্ট/সম্পাদনা করুন:
+          </label>
+          <textarea id="upload-text-input" class="form-textarea" rows="6" placeholder="ফাইলের টেক্সট স্বয়ংক্রিয়ভাবে এখানে চলে আসবে অথবা যেকোনো চুক্তিপত্র সরাসরি এখানে পেস্ট করুন..."></textarea>
+        </div>
+
+        <button class="btn btn-ai" id="btn-run-upload-audit" style="width: 100%; justify-content: center; padding: 10px 16px;">
           <i class="fa-solid fa-magnifying-glass-chart"></i> AI দিয়ে সম্পূর্ণ চুক্তি অডিট করুন
         </button>
         <div id="upload-audit-result" style="display: none; margin-top: 16px;"></div>
