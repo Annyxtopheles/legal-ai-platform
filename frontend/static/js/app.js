@@ -700,7 +700,7 @@ async function openHistoryModal() {
 
 window.copyVaultId = function() {
   const vid = getVaultSessionId();
-  navigator.clipboard.writeText(vid).then(() => {
+  const markCopied = () => {
     const btn = document.getElementById('btn-copy-vault');
     if (btn) {
       btn.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i> কপি হয়েছে!';
@@ -708,7 +708,15 @@ window.copyVaultId = function() {
         btn.innerHTML = '<i class="fa-regular fa-copy"></i> কপি কি';
       }, 2000);
     }
-  });
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(vid).then(markCopied).catch(() => {
+      prompt('আপনার ভল্ট কি:', vid);
+    });
+  } else {
+    prompt('আপনার ভল্ট কি:', vid);
+  }
 };
 
 window.loadContractById = async function(id, docType) {
@@ -1245,8 +1253,11 @@ function attachEvents() {
     }
   });
 
-  // Universal Modal Closers
-  const allModals = ['explainer-modal', 'sign-modal', 'history-modal', 'upload-modal', 'stamp-calc-modal', 'share-modal'];
+  // Universal Modal Closers (all 8 modals)
+  const allModals = [
+    'explainer-modal', 'sign-modal', 'history-modal', 'upload-modal',
+    'stamp-calc-modal', 'share-modal', 'notice-modal', 'verify-modal'
+  ];
   const closeAllModals = () => {
     allModals.forEach(id => {
       const el = document.getElementById(id);
@@ -1265,7 +1276,8 @@ function attachEvents() {
 
   ['close-explainer', 'btn-close-explainer-footer', 'close-sign', 'btn-close-sign-footer',
    'close-history', 'btn-close-history-footer', 'close-upload', 'btn-close-upload-footer',
-   'close-stamp-calc', 'btn-close-stamp-calc-footer', 'close-share', 'btn-close-share-footer'].forEach(btnId => {
+   'close-stamp-calc', 'btn-close-stamp-calc-footer', 'close-share', 'btn-close-share-footer',
+   'close-notice', 'btn-close-notice-footer', 'close-verify', 'btn-close-verify-footer'].forEach(btnId => {
     const btn = document.getElementById(btnId);
     if (btn) btn.addEventListener('click', closeAllModals);
   });
@@ -1493,12 +1505,20 @@ function attachEvents() {
   if (btnCopyNotice) {
     btnCopyNotice.addEventListener('click', () => {
       if (!lastGeneratedNotice) return;
-      navigator.clipboard.writeText(lastGeneratedNotice.body).then(() => {
+      const onCopied = () => {
         btnCopyNotice.innerHTML = '<i class="fa-solid fa-check"></i> কপি হয়েছে!';
         setTimeout(() => {
           btnCopyNotice.innerHTML = '<i class="fa-solid fa-copy"></i> কপি';
         }, 1800);
-      });
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(lastGeneratedNotice.body).then(onCopied).catch(() => {
+          prompt('নোটিশের মূল টেক্সট কপি করুন:', lastGeneratedNotice.body);
+        });
+      } else {
+        prompt('নোটিশের মূল টেক্সট কপি করুন:', lastGeneratedNotice.body);
+      }
     });
   }
 
