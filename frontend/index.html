@@ -100,6 +100,10 @@
       <div class="form-scroll-container">
         <!-- Step 1: Parties -->
         <div class="step-content" id="step-1">
+          <div style="background: #eff6ff; border-left: 3.5px solid #2563eb; border-radius: 0 6px 6px 0; padding: 10px 14px; margin-bottom: 14px; font-size: 0.82rem; color: #1e40af;">
+            <strong><i class="fa-solid fa-users"></i> চুক্তির মূল পক্ষদ্বয় (First & Second Party):</strong><br>
+            <span style="color: #3b82f6;">১ম পক্ষ (মালিক) ও ২য় পক্ষ (ভাড়াটিয়া)-এর নাম ও বিবরণ এখানে পরিবর্তন করুন। এই নামসমূহ দলিলের শীর্ষে ও স্বাক্ষরের স্থানে স্বয়ংক্রিয়ভাবে আপডেট হবে।</span>
+          </div>
           <div id="parties-form-fields"></div>
         </div>
 
@@ -149,6 +153,16 @@
 
         <!-- Step 4: Witnesses & Signatures -->
         <div class="step-content" id="step-4" style="display: none;">
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.82rem; color: #1e40af; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div>
+              <strong>১ম ও ২য় পক্ষের (মালিক ও ভাড়াটিয়া) নাম পরিবর্তন করতে চান?</strong><br>
+              <span style="color: #3b82f6;">মূল চুক্তিকারীদের নাম <strong>১. পক্ষের তথ্য</strong> ট্যাবে রয়েছে।</span>
+            </div>
+            <button type="button" class="btn btn-secondary" style="font-size: 0.78rem; padding: 5px 10px; white-space: nowrap; background: #ffffff; color: #1d4ed8; border: 1px solid #93c5fd; cursor: pointer;" onclick="goToStep(1)">
+              ১ম ট্যাবে যান <i class="fa-solid fa-arrow-right"></i>
+            </button>
+          </div>
+
           <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
             <h4 style="color: #166534; font-size: 0.95rem; margin-bottom: 4px;">
               <i class="fa-solid fa-signature"></i> ডিজিটাল ই-স্বাক্ষর (E-Signature)
@@ -160,6 +174,10 @@
               <i class="fa-solid fa-pen-nib"></i> স্বাক্ষর ক্যানভাস খুলুন
             </button>
           </div>
+
+          <h4 style="font-size: 0.88rem; color: #334155; margin: 16px 0 8px 0; font-weight: 700;">
+            <i class="fa-solid fa-user-check"></i> সাক্ষীগণের নাম ও ঠিকানা (Witnesses - দলিলের শেষ অংশে):
+          </h4>
           <div id="witness-form-fields"></div>
         </div>
       </div>
@@ -538,6 +556,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=3.5.6"></script>
+  <script src="/static/js/app.js?v=3.5.7"></script>
 </body>
 </html>

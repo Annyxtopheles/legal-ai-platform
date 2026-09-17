@@ -29,16 +29,16 @@ const formDefinitions = {
   tenancy_agreement: {
     step1: [
       { id: 'execution_date', label: 'চুক্তির তারিখ / Execution Date', type: 'text' },
-      { id: 'landlord_name', label: '১ম পক্ষ: বাড়িওয়ালার নাম', type: 'text' },
-      { id: 'landlord_father', label: 'বাড়িওয়ালার পিতা/স্বামীর নাম', type: 'text' },
-      { id: 'landlord_address', label: 'বাড়িওয়ালার ঠিকানা', type: 'text' },
-      { id: 'landlord_nid', label: 'এনআইডি / পাসপোর্ট নং', type: 'text' },
-      { id: 'landlord_phone', label: 'মোবাইল নম্বর', type: 'text' },
-      { id: 'tenant_name', label: '২য় পক্ষ: ভাড়াটিয়ার নাম', type: 'text' },
-      { id: 'tenant_father', label: 'ভাড়াটিয়ার পিতা/স্বামীর নাম', type: 'text' },
-      { id: 'tenant_address', label: 'ভাড়াটিয়ার স্থায়ী ঠিকানা', type: 'text' },
-      { id: 'tenant_nid', label: 'ভাড়াটিয়ার এনআইডি নং', type: 'text' },
-      { id: 'tenant_phone', label: 'ভাড়াটিয়ার মোবাইল নম্বর', type: 'text' }
+      { id: 'landlord_name', label: '১ম পক্ষ (মালিক / Landlord)-এর নাম', type: 'text' },
+      { id: 'landlord_father', label: '১ম পক্ষের পিতা/স্বামীর নাম', type: 'text' },
+      { id: 'landlord_address', label: '১ম পক্ষের বর্তমান ও স্থায়ী ঠিকানা', type: 'text' },
+      { id: 'landlord_nid', label: '১ম পক্ষের এনআইডি / পাসপোর্ট নং', type: 'text' },
+      { id: 'landlord_phone', label: '১ম পক্ষের মোবাইল নম্বর', type: 'text' },
+      { id: 'tenant_name', label: '২য় পক্ষ (ভাড়াটিয়া / Tenant)-এর নাম', type: 'text' },
+      { id: 'tenant_father', label: '২য় পক্ষের পিতা/স্বামীর নাম', type: 'text' },
+      { id: 'tenant_address', label: '২য় পক্ষের স্থায়ী ঠিকানা', type: 'text' },
+      { id: 'tenant_nid', label: '২য় পক্ষের এনআইডি নং', type: 'text' },
+      { id: 'tenant_phone', label: '২য় পক্ষের মোবাইল নম্বর', type: 'text' }
     ],
     step2: [
       { id: 'property_address', label: 'ভাড়াকৃত সম্পত্তির ঠিকানা ও পূর্ণ বিবরণ', type: 'textarea' },
@@ -53,10 +53,10 @@ const formDefinitions = {
       { id: 'utility_terms', label: 'ইউটিলিটি ও সার্ভিস চার্জ শর্ত', type: 'textarea' }
     ],
     step4: [
-      { id: 'witness1_name', label: '১ম সাক্ষীর নাম', type: 'text' },
-      { id: 'witness1_address', label: '১ম সাক্ষীর ঠিকানা', type: 'text' },
-      { id: 'witness2_name', label: '২য় সাক্ষীর নাম', type: 'text' },
-      { id: 'witness2_address', label: '২য় সাক্ষীর ঠিকানা', type: 'text' }
+      { id: 'witness1_name', label: '১ম সাক্ষীর নাম (Witness 1 - দলিলের শেষ অংশে)', type: 'text' },
+      { id: 'witness1_address', label: '১ম সাক্ষীর পূর্ণ ঠিকানা', type: 'text' },
+      { id: 'witness2_name', label: '২য় সাক্ষীর নাম (Witness 2 - দলিলের শেষ অংশে)', type: 'text' },
+      { id: 'witness2_address', label: '২য় সাক্ষীর পূর্ণ ঠিকানা', type: 'text' }
     ]
   },
   nda_agreement: {
@@ -267,6 +267,9 @@ function debouncedRender() {
 async function triggerDocumentRender() {
   try {
     state.formData.custom_clauses = state.customClauses;
+    const previewPanel = document.querySelector('.preview-panel');
+    const savedScrollTop = previewPanel ? previewPanel.scrollTop : 0;
+
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -280,6 +283,11 @@ async function triggerDocumentRender() {
       const data = await res.json();
       const container = document.getElementById('preview-container');
       container.innerHTML = data.rendered_html;
+
+      // Restore scroll position so typing does not yank the user back to the top of page 1
+      if (previewPanel && savedScrollTop > 0) {
+        previewPanel.scrollTop = savedScrollTop;
+      }
 
       const stamp = document.getElementById('stamp-header');
       if (stamp) {
@@ -783,14 +791,45 @@ async function openClauseExplainer(clauseText) {
   }
 }
 
+window.goToStep = function(stepNum) {
+  document.querySelectorAll('.step-tab').forEach(t => {
+    if (t.getAttribute('data-step') == stepNum) {
+      t.classList.add('active');
+    } else {
+      t.classList.remove('active');
+    }
+  });
+  document.querySelectorAll('.step-content').forEach(c => c.style.display = 'none');
+  const targetStep = document.getElementById(`step-${stepNum}`);
+  if (targetStep) targetStep.style.display = 'block';
+
+  // Smart preview sync: auto-scroll preview panel to relevant document section
+  const previewPanel = document.querySelector('.preview-panel');
+  if (previewPanel) {
+    if (stepNum == 1) {
+      previewPanel.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (stepNum == 2) {
+      const target = document.querySelector('.clauses-container') || document.querySelector('.highlight-box');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (stepNum == 3) {
+      const target = document.querySelector('.clauses-container');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (stepNum == 4) {
+      const sigTarget = document.querySelector('.signatures-section') || document.querySelector('.witness-section');
+      if (sigTarget) {
+        sigTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        previewPanel.scrollTo({ top: previewPanel.scrollHeight, behavior: 'smooth' });
+      }
+    }
+  }
+};
+
 function attachEvents() {
   document.querySelectorAll('.step-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.step-tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.step-content').forEach(c => c.style.display = 'none');
-      tab.classList.add('active');
       const stepNum = tab.getAttribute('data-step');
-      document.getElementById(`step-${stepNum}`).style.display = 'block';
+      window.goToStep(stepNum);
     });
   });
 
