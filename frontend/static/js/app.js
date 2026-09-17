@@ -980,8 +980,13 @@ function attachEvents() {
   document.getElementById('btn-pdf').addEventListener('click', async () => {
     const btn = document.getElementById('btn-pdf');
     const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> তৈরি হচ্ছে...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> সার্ভার PDF তৈরি হচ্ছে...';
     btn.disabled = true;
+
+    // Helpful progressive feedback if cloud server is waking from sleep
+    const wakeTimer = setTimeout(() => {
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> সার্ভার প্রস্তুত হচ্ছে (ক্লাউড চালু হচ্ছে)...';
+    }, 3500);
 
     try {
       const res = await fetch('/api/export/pdf', {
@@ -993,6 +998,8 @@ function attachEvents() {
           data: state.formData
         })
       });
+
+      clearTimeout(wakeTimer);
 
       if (res.ok) {
         const blob = await res.blob();
@@ -1015,8 +1022,10 @@ function attachEvents() {
         alert(errMsg);
       }
     } catch (err) {
+      clearTimeout(wakeTimer);
       alert('PDF ডাউনলোড ব্যর্থ হয়েছে: ' + err.message);
     } finally {
+      clearTimeout(wakeTimer);
       btn.innerHTML = originalText;
       btn.disabled = false;
     }
@@ -1258,6 +1267,13 @@ function attachEvents() {
       }
     });
   }
+
+  // Active Tab Keep-Warm: prevents Render.com free instance from sleeping while user drafts
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      fetch('/api/health').catch(() => {});
+    }
+  }, 3 * 60 * 1000);
 
 }
 

@@ -88,6 +88,8 @@ class PDFService:
         with tempfile.TemporaryDirectory() as tmpdir:
             html_file = Path(tmpdir) / "document.html"
             pdf_file = Path(tmpdir) / "document.pdf"
+            profile_dir = Path(tmpdir) / "chrome-profile"
+            profile_dir.mkdir(exist_ok=True)
 
             html_file.write_text(html_content, encoding="utf-8")
 
@@ -98,8 +100,31 @@ class PDFService:
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-software-rasterizer",
-                "--run-all-compositor-stages-before-draw",
                 "--no-margins",
+                f"--user-data-dir={str(profile_dir)}",
+                "--disable-background-networking",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-breakpad",
+                "--disable-client-side-phishing-detection",
+                "--disable-component-update",
+                "--disable-default-apps",
+                "--disable-dev-tools",
+                "--disable-domain-reliability",
+                "--disable-extensions",
+                "--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process",
+                "--disable-hang-monitor",
+                "--disable-ipc-flooding-protection",
+                "--disable-popup-blocking",
+                "--disable-prompt-on-repost",
+                "--disable-renderer-backgrounding",
+                "--disable-sync",
+                "--disable-translate",
+                "--metrics-recording-only",
+                "--no-first-run",
+                "--no-zygote",
+                "--safebrowsing-disable-auto-update",
+                "--mute-audio",
                 f"--print-to-pdf={str(pdf_file)}",
                 str(html_file)
             ]
@@ -132,5 +157,15 @@ class PDFService:
         semaphore = self._get_semaphore()
         async with semaphore:
             return await asyncio.to_thread(self._render_sync, html_content)
+
+    async def warm_up_async(self):
+        """Pre-warm Chromium on server startup so the first export is instantaneous."""
+        try:
+            logger.info("PDFService: Warming up browser engine...")
+            dummy = "<!DOCTYPE html><html><body><h1>Warmup</h1></body></html>"
+            await self.convert_html_to_pdf_async(dummy)
+            logger.info("PDFService: Headless browser is warm and ready.")
+        except Exception as e:
+            logger.warning(f"PDFService warmup skipped: {e}")
 
 pdf_service = PDFService()

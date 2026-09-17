@@ -31,10 +31,14 @@ from app.database import (
     get_contract, delete_contract, update_remote_signature, IS_POSTGRES
 )
 
+import asyncio
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize DB (PostgreSQL or SQLite WAL mode) on startup
     await init_db()
+    # Pre-warm Chromium in background so initial PDF export is lightning fast
+    asyncio.create_task(pdf_service.warm_up_async())
     yield
 
 app = FastAPI(
