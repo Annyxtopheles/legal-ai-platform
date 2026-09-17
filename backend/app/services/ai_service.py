@@ -21,12 +21,12 @@ class AIService:
             self._async_client = httpx.AsyncClient(limits=limits, timeout=30.0)
         return self._async_client
 
-    async def _call_gemini_async(self, prompt: str, system_instruction: str = None) -> str:
+    async def _call_gemini_async(self, prompt: str, system_instruction: str = None, json_mode: bool = False) -> str:
         api_key = self.api_key or os.getenv("GEMINI_API_KEY", "")
         if not api_key:
             return ""
 
-        candidate_models = [self.model, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+        candidate_models = [self.model, "gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-pro"]
         # Deduplicate while preserving order
         candidate_models = list(dict.fromkeys([m for m in candidate_models if m]))
 
@@ -37,20 +37,24 @@ class AIService:
 
         contents.append({"role": "user", "parts": [{"text": prompt}]})
 
+        generation_config = {
+            "temperature": 0.2,
+            "topP": 0.95,
+            "maxOutputTokens": 2048
+        }
+        if json_mode:
+            generation_config["responseMimeType"] = "application/json"
+
         payload = {
             "contents": contents,
-            "generationConfig": {
-                "temperature": 0.2,
-                "topP": 0.95,
-                "maxOutputTokens": 2048
-            }
+            "generationConfig": generation_config
         }
 
         client = await self.get_client()
         for model in candidate_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
             try:
-                resp = await client.post(url, json=payload)
+                resp = await client.post(url, json=payload, timeout=20.0)
                 if resp.status_code == 200:
                     data = resp.json()
                     candidates = data.get("candidates", [])
@@ -79,6 +83,8 @@ class AIService:
         Language: {'Bangla' if language == 'bn' else 'English'}
         Informal user requirement: "{raw_text}"
         
+        Note: If the requirement is extremely short, a greeting, or not a specific contract term (e.g. 'what', 'hello'), formulate a standard mutual good-faith compliance clause and state in the explanation that specific requirements should be provided.
+        
         Respond ONLY with a JSON object in the following format:
         {{
             "title": "Short title of clause",
@@ -88,7 +94,7 @@ class AIService:
         }}
         """
         
-        ai_response = await self._call_gemini_async(prompt)
+        ai_response = await self._call_gemini_async(prompt, json_mode=True)
         if ai_response:
             try:
                 cleaned = ai_response.strip()
@@ -105,12 +111,22 @@ class AIService:
                 logger.error(f"Failed to parse Gemini JSON: {e}")
 
         # Built-in Heuristic Fallback
-        if language == "bn":
-            refined = f"উভয় পক্ষ এই মর্মে সম্মত হইলেন যে, {raw_text.strip()}। উক্ত শর্ত লঙ্ঘন করিলে বা ব্যত্যয় ঘটিলে ক্ষতিগ্রস্ত পক্ষ প্রচলিত আইন ও এই চুক্তির বিধিমোতাবেক ক্ষতিপূরণ দাবি করিতে এবং চুক্তি বাতিল বলিয়া গণ্য করিতে পারিবে।"
+        clean_input = raw_text.strip()
+        if len(clean_input) < 4 or clean_input.lower() in ["what", "hello", "hi", "test", "hey"]:
+            if language == "bn":
+                refined = "উভয় পক্ষ চুক্তির নির্দিষ্ট কোনো শর্ত সংযোজন করিতে চাহিলে তাহার বিস্তারিত বিবরণ (যেমন: বিশেষ ব্যবহারবিধি, বকেয়া পরিশোধ বা নিরাপত্তা বিধান) উল্লেখ করিবেন।"
+                title = "সাধারণ পরিচালনা ও সম্মতি বিধি"
+                explanation = "অসম্পূর্ণ বা অনির্দিষ্ট ইনপুটের জন্য সাধারণ শর্ত। সুনির্দিষ্ট বিবরণ লিখলে AI তা কার্যকর ধারায় রূপান্তর করবে।"
+            else:
+                refined = "The Parties agree that any supplemental covenant shall be defined with specific obligations, remedies, and compliance timelines."
+                title = "General Compliance & Governance"
+                explanation = "Standard general covenant. Provide detailed requirements for customized legal terms."
+        elif language == "bn":
+            refined = f"উভয় পক্ষ এই মর্মে সম্মত হইলেন যে, {clean_input}। উক্ত শর্ত লঙ্ঘন করিলে বা ব্যত্যয় ঘটিলে ক্ষতিগ্রস্ত পক্ষ প্রচলিত আইন ও এই চুক্তির বিধিমোতাবেক ক্ষতিপূরণ দাবি করিতে এবং চুক্তি বাতিল বলিয়া গণ্য করিতে পারিবে।"
             title = "বিশেষ বাধ্যবাধকতা ও পরিচালনা বিধি"
             explanation = "এই ধারাটি চুক্তির সাধারণ আইন অনুযায়ী উভয় পক্ষের উপর সমভাবে বর্তাবে।"
         else:
-            refined = f"The Parties hereby agree that {raw_text.strip()}. Any breach or non-compliance of this provision shall entitle the non-breaching Party to claim appropriate remedies, damages, and terminate this Agreement in accordance with applicable governing laws."
+            refined = f"The Parties hereby agree that {clean_input}. Any breach or non-compliance of this provision shall entitle the non-breaching Party to claim appropriate remedies, damages, and terminate this Agreement in accordance with applicable governing laws."
             title = "Special Obligations & Compliance"
             explanation = "Standard enforceable clause adhering to bilateral contract principles."
 
@@ -142,7 +158,7 @@ class AIService:
         }}
         """
 
-        ai_response = await self._call_gemini_async(prompt)
+        ai_response = await self._call_gemini_async(prompt, json_mode=True)
         if ai_response:
             try:
                 cleaned = ai_response.strip()
@@ -159,7 +175,29 @@ class AIService:
                 logger.error(f"Failed to parse AI response: {e}")
 
         # Knowledge-base fallback
-        if language == "bn":
+        clean_text = clause_text.strip()
+        if len(clean_text) < 6 or clean_text.lower() in ["hello", "hi", "what", "test"]:
+            if language == "bn":
+                result = {
+                    "simple_explanation": "প্রদত্ত অংশটি একটি খসড়া বা অসম্পূর্ণ শব্দ। চুক্তিপত্রের কোনো নির্দিষ্ট ধারা নির্বাচন করিলে তাহার বিস্তারিত আইনগত ব্যাখ্যা প্রদর্শিত হইবে।",
+                    "key_obligations": [
+                        "চুক্তিপত্রের পূর্ণাঙ্গ ধারা বা অনুচ্ছেদ উল্লেখ করা।"
+                    ],
+                    "potential_risks": [
+                        "অসম্পূর্ণ বাক্য চুক্তিতে অন্তর্ভুক্ত থাকিলে আইনগত অনিশ্চয়তা সৃষ্টি হইতে পারে।"
+                    ]
+                }
+            else:
+                result = {
+                    "simple_explanation": "The provided text is an informal placeholder. Select a complete contract clause to view detailed legal obligations.",
+                    "key_obligations": [
+                        "Review and reference the complete clause language."
+                    ],
+                    "potential_risks": [
+                        "Incomplete clauses in an executed deed create legal ambiguity."
+                    ]
+                }
+        elif language == "bn":
             result = {
                 "simple_explanation": "এই ধারাটি চুক্তির পক্ষদ্বয়ের অধিকার, নির্দিষ্ট বাধ্যবাধকতা ও পারস্পরিক সম্মতির সীমা নির্ধারণ করে।",
                 "key_obligations": [
@@ -210,7 +248,7 @@ class AIService:
             ]
         }}
         """
-        ai_response = await self._call_gemini_async(prompt)
+        ai_response = await self._call_gemini_async(prompt, json_mode=True)
         if ai_response:
             try:
                 cleaned = ai_response.strip()
