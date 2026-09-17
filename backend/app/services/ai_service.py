@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import asyncio
 import httpx
 from typing import Dict, Any, List
 from app.config import GEMINI_API_KEY, GEMINI_MODEL
@@ -15,10 +16,14 @@ class AIService:
         self._async_client = None
 
     async def get_client(self) -> httpx.AsyncClient:
-        if self._async_client is None or self._async_client.is_closed:
-            # Reusable HTTP connection pool for high concurrency
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if self._async_client is None or self._async_client.is_closed or getattr(self, "_client_loop", None) != loop:
             limits = httpx.Limits(max_keepalive_connections=20, max_connections=50)
             self._async_client = httpx.AsyncClient(limits=limits, timeout=30.0)
+            self._client_loop = loop
         return self._async_client
 
     async def _call_gemini_async(self, prompt: str, system_instruction: str = None, json_mode: bool = False) -> str:
@@ -26,7 +31,7 @@ class AIService:
         if not api_key:
             return ""
 
-        candidate_models = [self.model, "gemini-3.5-flash", "gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-pro"]
+        candidate_models = [self.model, "gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.1-pro-preview", "gemini-flash-latest"]
         # Deduplicate while preserving order
         candidate_models = list(dict.fromkeys([m for m in candidate_models if m]))
 
