@@ -15,6 +15,16 @@ let state = {
   currentDocHash: ''
 };
 
+function getVaultSessionId() {
+  let vid = localStorage.getItem('smartlegal_vault_id');
+  if (!vid) {
+    const randPart = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+    vid = 'usr_' + randPart;
+    localStorage.setItem('smartlegal_vault_id', vid);
+  }
+  return vid;
+}
+
 const formDefinitions = {
   tenancy_agreement: {
     step1: [
@@ -458,23 +468,40 @@ function initSignatureCanvas() {
   });
 }
 
-// Database History Modal
+// Database History Modal (Private Vault Isolated)
 async function openHistoryModal() {
   const modal = document.getElementById('history-modal');
   const container = document.getElementById('history-list-container');
   modal.style.display = 'flex';
-  container.innerHTML = '<p style="text-align: center; color: #0284c7; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> লোড হচ্ছে...</p>';
+  
+  const vaultId = getVaultSessionId();
+  container.innerHTML = '<p style="text-align: center; color: #0284c7; padding: 20px;"><i class="fa-solid fa-spinner fa-spin"></i> ভল্ট লোড হচ্ছে...</p>';
 
   try {
-    const res = await fetch('/api/contracts');
+    const res = await fetch('/api/contracts', {
+      headers: { 'X-Session-ID': vaultId }
+    });
     const list = await res.json();
 
-    if (list.length === 0) {
-      container.innerHTML = '<p style="text-align: center; color: #64748b; padding: 20px;">ডাটাবেসে কোনো সংরক্ষিত চুক্তি নেই।</p>';
+    const vaultBanner = `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155;">
+          <i class="fa-solid fa-vault" style="color: #0f172a; font-size: 0.95rem;"></i>
+          <span>আপনার ব্যক্তিগত ভল্ট:</span>
+          <code style="background: #e2e8f0; padding: 2px 7px; border-radius: 4px; font-weight: 600; color: #0f172a; font-size: 0.8rem;">${vaultId}</code>
+        </div>
+        <button id="btn-copy-vault" style="background: white; border: 1px solid #cbd5e1; border-radius: 5px; padding: 4px 10px; cursor: pointer; color: #0f172a; font-size: 0.78rem; font-weight: 600; display: flex; align-items: center; gap: 4px;" onclick="copyVaultId()">
+          <i class="fa-regular fa-copy"></i> কপি কি
+        </button>
+      </div>
+    `;
+
+    if (!Array.isArray(list) || list.length === 0) {
+      container.innerHTML = vaultBanner + '<p style="text-align: center; color: #64748b; padding: 25px;">আপনার ভল্টে এখনো কোনো চুক্তি সংরক্ষিত নেই। বাম পাশের এডিটর থেকে <strong>"খসড়া সেভ করুন"</strong> বাটনে ক্লিক করে সেভ করুন।</p>';
       return;
     }
 
-    container.innerHTML = list.map(item => `
+    container.innerHTML = vaultBanner + list.map(item => `
       <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
         <div>
           <h4 style="color: #0f172a; font-size: 0.95rem; margin-bottom: 4px;">${item.title}</h4>
@@ -497,9 +524,24 @@ async function openHistoryModal() {
   }
 }
 
+window.copyVaultId = function() {
+  const vid = getVaultSessionId();
+  navigator.clipboard.writeText(vid).then(() => {
+    const btn = document.getElementById('btn-copy-vault');
+    if (btn) {
+      btn.innerHTML = '<i class="fa-solid fa-check" style="color: #10b981;"></i> কপি হয়েছে!';
+      setTimeout(() => {
+        btn.innerHTML = '<i class="fa-regular fa-copy"></i> কপি কি';
+      }, 2000);
+    }
+  });
+};
+
 window.loadContractById = async function(id, docType) {
   try {
-    const res = await fetch(`/api/contracts/${id}`);
+    const res = await fetch(`/api/contracts/${id}`, {
+      headers: { 'X-Session-ID': getVaultSessionId() }
+    });
     const item = await res.json();
     state.currentContractId = item.id;
     document.getElementById('template-select').value = item.document_type;
@@ -513,7 +555,10 @@ window.loadContractById = async function(id, docType) {
 window.deleteContractById = async function(id) {
   if (!confirm('আপনি কি নিশ্চিত এই চুক্তিটি মুছে ফেলতে চান?')) return;
   try {
-    await fetch(`/api/contracts/${id}`, { method: 'DELETE' });
+    await fetch(`/api/contracts/${id}`, {
+      method: 'DELETE',
+      headers: { 'X-Session-ID': getVaultSessionId() }
+    });
     openHistoryModal();
   } catch (err) {
     alert('মুছতে ব্যর্থ হয়েছে: ' + err.message);
@@ -651,12 +696,16 @@ function attachEvents() {
     if (!state.currentContractId) {
       state.formData.custom_clauses = state.customClauses;
       const currentMeta = state.templates.find(t => t.id === state.currentTemplate);
-      const title = `${currentMeta ? currentMeta.title_bn : 'চুক্তিপত্র'} - ${new Date().toLocaleDateString('bn-BD')}`;
+      const vaultId = getVaultSessionId();
       const res = await fetch('/api/contracts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': vaultId
+        },
         body: JSON.stringify({
           id: null,
+          owner_id: vaultId,
           title: title,
           document_type: state.currentTemplate,
           language: state.currentLang,
@@ -804,11 +853,16 @@ function attachEvents() {
     const title = `${currentMeta ? currentMeta.title_bn : 'চুক্তিপত্র'} - ${new Date().toLocaleDateString('bn-BD')}`;
 
     try {
+      const vaultId = getVaultSessionId();
       const res = await fetch('/api/contracts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': vaultId
+        },
         body: JSON.stringify({
           id: state.currentContractId,
+          owner_id: vaultId,
           title: title,
           document_type: state.currentTemplate,
           language: state.currentLang,
@@ -912,7 +966,17 @@ function attachEvents() {
     if (e.key === 'Escape') closeAllModals();
   });
 
-  // PDF Export
+  // Instant Client-Side Print & Vector PDF Export (0ms server load)
+  const btnPrintInstant = document.getElementById('btn-print-instant');
+  if (btnPrintInstant) {
+    btnPrintInstant.addEventListener('click', () => {
+      applyWatermarkToPreview();
+      refreshDocumentHash();
+      window.print();
+    });
+  }
+
+  // Server-Side Headless Chrome PDF Export
   document.getElementById('btn-pdf').addEventListener('click', async () => {
     const btn = document.getElementById('btn-pdf');
     const originalText = btn.innerHTML;

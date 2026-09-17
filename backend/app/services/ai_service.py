@@ -1,8 +1,9 @@
-﻿import json
+import json
 import logging
-import requests
+import httpx
 from typing import Dict, Any, List
 from app.config import GEMINI_API_KEY, GEMINI_MODEL
+from app.services.cache_service import ai_cache
 
 logger = logging.getLogger(__name__)
 
@@ -10,8 +11,16 @@ class AIService:
     def __init__(self):
         self.api_key = GEMINI_API_KEY
         self.model = GEMINI_MODEL
+        self._async_client = None
 
-    def _call_gemini(self, prompt: str, system_instruction: str = None) -> str:
+    async def get_client(self) -> httpx.AsyncClient:
+        if self._async_client is None or self._async_client.is_closed:
+            # Reusable HTTP connection pool for high concurrency
+            limits = httpx.Limits(max_keepalive_connections=20, max_connections=50)
+            self._async_client = httpx.AsyncClient(limits=limits, timeout=30.0)
+        return self._async_client
+
+    async def _call_gemini_async(self, prompt: str, system_instruction: str = None) -> str:
         if not self.api_key:
             return ""
 
@@ -34,7 +43,8 @@ class AIService:
         }
 
         try:
-            resp = requests.post(url, json=payload, timeout=25)
+            client = await self.get_client()
+            resp = await client.post(url, json=payload)
             if resp.status_code == 200:
                 data = resp.json()
                 text = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -42,10 +52,15 @@ class AIService:
             else:
                 logger.warning(f"Gemini API returned {resp.status_code}: {resp.text}")
         except Exception as e:
-            logger.error(f"Error connecting to Gemini API: {e}")
+            logger.error(f"Error connecting to Gemini API asynchronously: {e}")
         return ""
 
-    def refine_clause(self, raw_text: str, document_type: str = "tenancy_agreement", language: str = "bn") -> Dict[str, Any]:
+    async def refine_clause(self, raw_text: str, document_type: str = "tenancy_agreement", language: str = "bn") -> Dict[str, Any]:
+        cache_key = ai_cache.generate_key("refine", raw_text.strip().lower(), document_type, language)
+        cached = await ai_cache.get(cache_key)
+        if cached:
+            return cached
+
         prompt = f"""
         You are an expert legal draftsperson specializing in Bangladesh and international contract law.
         Convert the following informal requirement into a legally enforceable, professional, binding contract clause.
@@ -63,7 +78,7 @@ class AIService:
         }}
         """
         
-        ai_response = self._call_gemini(prompt)
+        ai_response = await self._call_gemini_async(prompt)
         if ai_response:
             try:
                 cleaned = ai_response.strip()
@@ -73,7 +88,9 @@ class AIService:
                     cleaned = cleaned[3:]
                 if cleaned.endswith("```"):
                     cleaned = cleaned[:-3]
-                return json.loads(cleaned.strip())
+                result = json.loads(cleaned.strip())
+                await ai_cache.set(cache_key, result)
+                return result
             except Exception as e:
                 logger.error(f"Failed to parse Gemini JSON: {e}")
 
@@ -87,14 +104,21 @@ class AIService:
             title = "Special Obligations & Compliance"
             explanation = "Standard enforceable clause adhering to bilateral contract principles."
 
-        return {
+        result = {
             "title": title,
             "refined_clause": refined,
             "risk_level": "Low",
             "explanation": explanation
         }
+        await ai_cache.set(cache_key, result)
+        return result
 
-    def explain_clause(self, clause_text: str, language: str = "bn") -> Dict[str, Any]:
+    async def explain_clause(self, clause_text: str, language: str = "bn") -> Dict[str, Any]:
+        cache_key = ai_cache.generate_key("explain", clause_text.strip().lower(), language)
+        cached = await ai_cache.get(cache_key)
+        if cached:
+            return cached
+
         prompt = f"""
         Explain the following legal clause in simple, easy-to-understand plain language for an ordinary citizen.
         Target Language: {'Bangla' if language == 'bn' else 'English'}
@@ -108,7 +132,7 @@ class AIService:
         }}
         """
 
-        ai_response = self._call_gemini(prompt)
+        ai_response = await self._call_gemini_async(prompt)
         if ai_response:
             try:
                 cleaned = ai_response.strip()
@@ -118,34 +142,44 @@ class AIService:
                     cleaned = cleaned[3:]
                 if cleaned.endswith("```"):
                     cleaned = cleaned[:-3]
-                return json.loads(cleaned.strip())
+                result = json.loads(cleaned.strip())
+                await ai_cache.set(cache_key, result)
+                return result
             except Exception as e:
                 logger.error(f"Failed to parse AI response: {e}")
 
+        # Knowledge-base fallback
         if language == "bn":
-            return {
-                "simple_explanation": f"এই ধারাটির মূল বক্তব্য হলো: চুক্তির উভয় পক্ষকে উল্লেখিত শর্ত বা দায়িত্বটি যথাযথভাবে প্রতিপালন করিতে হইবে। কোনো এক পক্ষের খামখেয়ালিপনা বা একতরফা সিদ্ধান্তের সুযোগ বন্ধ করার জন্য এটি রচিত।",
+            result = {
+                "simple_explanation": "এই ধারাটি চুক্তির পক্ষদ্বয়ের অধিকার, নির্দিষ্ট বাধ্যবাধকতা ও পারস্পরিক সম্মতির সীমা নির্ধারণ করে।",
                 "key_obligations": [
-                    "চুক্তির মেয়াদকালীন সময়ে উভয় পক্ষকে এই নিয়ম মানিয়া চলিতে হইবে।",
-                    "উভয় পক্ষকে আর্থিক ও আইনি দায়দায়িত্ব সময়মতো নিষ্পন্ন করিতে হইবে।"
+                    "চুক্তির নির্ধারিত শর্তাবলি ও সময়সীমা যথাযথভাবে মানিয়া চলা।",
+                    "উভয় পক্ষের সম্মতি ব্যতিরেকে এককভাবে কোনো শর্ত পরিবর্তন না করা।"
                 ],
                 "potential_risks": [
-                    "শর্ত ভঙ্গ করিলে অপর পক্ষ ক্ষতিপূরণ দাবি করিতে এবং চুক্তি সমাপ্তির নোটিশ দিতে পারিবে।"
+                    "শর্ত ভঙ্গ করিলে অপর পক্ষ ক্ষতিপূরণ দাবি বা আইনি পদক্ষেপ গ্রহণ করিতে পারে।"
                 ]
             }
         else:
-            return {
-                "simple_explanation": "This clause establishes mandatory compliance obligations between both parties to prevent breach of trust.",
+            result = {
+                "simple_explanation": "This clause defines specific obligations, legal limits, and operational duties between the signing parties.",
                 "key_obligations": [
-                    "Full adherence to operational timeline and financial commitments.",
-                    "Written notice required prior to any variation."
+                    "Strictly comply with specified terms and timelines.",
+                    "No unilateral modification without written bilateral consent."
                 ],
                 "potential_risks": [
-                    "Failure to comply can trigger default remedies or termination."
+                    "Breach may result in monetary damages or legal termination."
                 ]
             }
+        await ai_cache.set(cache_key, result)
+        return result
 
-    def audit_contract(self, document_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def audit_contract(self, document_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        cache_key = ai_cache.generate_key("audit", document_type, data)
+        cached = await ai_cache.get(cache_key)
+        if cached:
+            return cached
+
         prompt = f"""
         Perform a comprehensive legal risk audit on this contract data for {document_type}.
         Identify potential loopholes, missing essential clauses, ambiguous terms, or unbalanced liability.
@@ -166,7 +200,7 @@ class AIService:
             ]
         }}
         """
-        ai_response = self._call_gemini(prompt)
+        ai_response = await self._call_gemini_async(prompt)
         if ai_response:
             try:
                 cleaned = ai_response.strip()
@@ -176,7 +210,9 @@ class AIService:
                     cleaned = cleaned[3:]
                 if cleaned.endswith("```"):
                     cleaned = cleaned[:-3]
-                return json.loads(cleaned.strip())
+                result = json.loads(cleaned.strip())
+                await ai_cache.set(cache_key, result)
+                return result
             except Exception as e:
                 logger.error(f"Failed to parse AI response: {e}")
 
@@ -212,13 +248,15 @@ class AIService:
                     "suggestion": "উভয় পক্ষের সুবিধার জন্য নোটিশ পিরিয়ড ২ মাস করা নিরাপদ।"
                 })
 
-        return {
+        result = {
             "score": max(score, 70),
             "summary": "চুক্তিপত্রটিতে মৌলিক সুরক্ষাসমূহ বিদ্যমান। চিহ্নিত পয়েন্টগুলো সমাধান করিলে এটি আদালতে সম্পূর্ণ সুষম ও সুরক্ষিত থাকিবে।",
             "issues": issues
         }
+        await ai_cache.set(cache_key, result)
+        return result
 
-    def audit_uploaded_document(self, raw_text: str, filename: str = "document.pdf") -> Dict[str, Any]:
+    async def audit_uploaded_document(self, raw_text: str, filename: str = "document.pdf") -> Dict[str, Any]:
         prompt = f"""
         You are an elite legal contract auditor.
         Review this uploaded legal contract text from file "{filename}".
@@ -251,7 +289,7 @@ class AIService:
         }}
         """
 
-        ai_response = self._call_gemini(prompt)
+        ai_response = await self._call_gemini_async(prompt)
         if ai_response:
             try:
                 cleaned = ai_response.strip()
@@ -290,7 +328,12 @@ class AIService:
             ]
         }
 
-    def ask_legal_assistant(self, user_question: str, contract_context: str = "") -> str:
+    async def ask_legal_assistant(self, user_question: str, contract_context: str = "") -> str:
+        cache_key = ai_cache.generate_key("chat", user_question.strip().lower(), contract_context.strip())
+        cached = await ai_cache.get(cache_key)
+        if cached:
+            return cached
+
         prompt = f"""
         You are "আইনAI সহকারী" (Smart Legal AI Assistant), an expert in Bangladesh Contract Law, The Stamp Act 1899, Premises Rent Control Act, and Employment regulations.
         Answer this user legal question warmly, accurately, and practically in clear Bengali (বাংলা).
@@ -303,34 +346,39 @@ class AIService:
         2. প্রচলিত আইনের রেফারেন্স (যেমন: স্ট্যাম্প আইন, চুক্তি আইন ১৮৭২ ইত্যাদি)
         3. সতর্কতা বা প্র্যাকটিক্যাল টিপস
         """
-        ai_resp = self._call_gemini(prompt)
+        ai_resp = await self._call_gemini_async(prompt)
         if ai_resp:
-            return ai_resp.strip()
+            result = ai_resp.strip()
+            await ai_cache.set(cache_key, result)
+            return result
 
         # Knowledge-base Heuristic Answers for Common Legal Questions in Bangladesh
         q_lower = user_question.lower()
         if "স্ট্যাম্প" in q_lower or "stamp" in q_lower:
-            return """**স্ট্যাম্প ব্যবহারের আইনি নিয়ম:**
+            result = """**স্ট্যাম্প ব্যবহারের আইনি নিয়ম:**
 ১. বাংলাদেশ স্ট্যাম্প আইন ১৮৯৯ (The Stamp Act, 1899) অনুযায়ী যেকোনো বাড়ি/দোকান ভাড়ার চুক্তি, সাধারণ অংশীদারি ও ফ্রিল্যান্স চুক্তির জন্য **৩০০ টাকার নন-জুডিশিয়াল স্ট্যাম্প** ব্যবহার করা বাধ্যতামূলক।
 ২. অংশীদারি কারবারের মূলধন ৫০,০০০ টাকার বেশি হলে **২,০০০ টাকার স্ট্যাম্প** প্রযোজ্য।
 ৩. প্রথম পাতায় ৩০০ টাকার স্ট্যাম্প এবং পেজ বেশি হলে বাকি পাতাগুলো সাধারণ লিগ্যাল বা ডিমাই সাইজের পেপারে প্রিন্ট করে প্রতি পাতায় উভয় পক্ষের স্বাক্ষর নিতে হয়।"""
 
         elif "নোটিশ" in q_lower or "বাতিল" in q_lower or "termination" in q_lower:
-            return """**চুক্তি বাতিল ও নোটিশ সংক্রান্ত আইনি বিধান:**
+            result = """**চুক্তি বাতিল ও নোটিশ সংক্রান্ত আইনি বিধান:**
 ১. যেকোনো পক্ষের ইচ্ছায় চুক্তি বাতিলের জন্য চুক্তিতে উল্লেখিত নির্দিষ্ট মেয়াদের (সাধারণত ১ থেকে ২ মাস) লিখিত নোটিশ প্রদান বাধ্যতামূলক।
 ২. নোটিশ ছাড়া হঠাৎ বাসা ছাড়তে বললে বা বাড়িওয়ালা বের করে দিতে চাইলে ক্ষতিগ্রস্ত পক্ষ চুক্তি আইন ১৮৭২ অনুযায়ী ক্ষতিপূরণ ও আদালতের প্রতিকার চাইতে পারেন।
 ৩. নোটিশ অবশ্যই লিখিত বা রেজিস্টার্ড ডাকযোগে/স্বাক্ষরিত প্রাপ্তিস্বীকারসহ প্রদান করা সর্বোত্তম।"""
 
         elif "অগ্রিম" in q_lower or "জামানত" in q_lower or "deposit" in q_lower:
-            return """**অগ্রিম জামানত (Security Deposit) ফেরত বিধি:**
+            result = """**অগ্রিম জামানত (Security Deposit) ফেরত বিধি:**
 ১. বাড়ি ভাড়া নিয়ন্ত্রণ আইন অনুযায়ী ভাড়ার চুক্তি শেষ হওয়ার সময় কোনো ভাড়া বা ইউটিলিটি বকেয়া না থাকলে অগ্রিম জামানতের সম্পূর্ণ টাকা বাড়িওয়ালা ফেরত দিতে আইনত বাধ্য।
 ২. বাড়িওয়ালা বিনা কারণে জামানতের টাকা আটকে রাখলে চুক্তিভঙ্গের অভিযোগে আইনি নোটিশ (Legal Notice) পাঠানো যায়।"""
 
         else:
-            return f"""**আপনার প্রশ্নের আইনি পর্যালোচনা:**
+            result = f"""**আপনার প্রশ্নের আইনি পর্যালোচনা:**
 "{user_question}"-এর ক্ষেত্রে প্রচলিত বাংলাদেশ চুক্তি আইন ১৮৭২ (The Contract Act, 1872) অনুযায়ী:
 ১. উভয় পক্ষ সুস্থ মস্তিষ্কে যে শর্তে সম্মত হয়ে স্বাক্ষর করেন, তা আদালতের দৃষ্টিতে অলঙ্ঘনীয় বাধ্যবাধকতা হিসেবে গণ্য হয়।
 ২. চুক্তিতে যেকোনো পরিবর্তন আনতে হলে উভয় পক্ষের যৌথ লিখিত সম্মতি আবশ্যক।
 ৩. জটিল কোনো আর্থিক বা দেওয়ানি বিরোধের ক্ষেত্রে উপযুক্ত আইনজীবী বা সংশ্লিষ্ট সাব-রেজিস্ট্রি অফিসে যোগাযোগ করার পরামর্শ দেওয়া হচ্ছে।"""
+
+        await ai_cache.set(cache_key, result)
+        return result
 
 ai_service = AIService()
