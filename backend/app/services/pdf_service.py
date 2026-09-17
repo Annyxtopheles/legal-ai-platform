@@ -1,4 +1,5 @@
 import os
+import shutil
 import asyncio
 import subprocess
 import tempfile
@@ -9,18 +10,65 @@ logger = logging.getLogger(__name__)
 
 class PDFService:
     def __init__(self, max_concurrent: int = 3):
-        self.chrome_paths = [
-            r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-            r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
-            r'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
-        ]
-        self.browser_exe = None
-        for p in self.chrome_paths:
-            if os.path.exists(p):
-                self.browser_exe = p
-                break
         self._max_concurrent = max_concurrent
         self._semaphore = None
+        self.browser_exe = self._detect_browser()
+        if self.browser_exe:
+            logger.info(f"PDFService initialized with browser: {self.browser_exe}")
+        else:
+            logger.warning("PDFService: No browser executable found initially. Will retry on demand.")
+
+    def _detect_browser(self) -> str | None:
+        # 1. Environment variable override
+        for env_var in ["CHROME_BIN", "CHROMIUM_PATH", "PUPPETEER_EXECUTABLE_PATH"]:
+            val = os.getenv(env_var)
+            if val and os.path.exists(val):
+                return val
+
+        # 2. Check PATH
+        for bin_name in ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "chrome", "msedge"]:
+            which_p = shutil.which(bin_name)
+            if which_p and os.path.exists(which_p):
+                return which_p
+
+        # 3. Known Linux/Docker paths
+        linux_paths = [
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/snap/bin/chromium",
+            "/usr/local/bin/chromium"
+        ]
+        for p in linux_paths:
+            if os.path.exists(p):
+                return p
+
+        # 4. Known Windows paths
+        win_paths = [
+            r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+            r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+            r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+            r'C:\Program Files\Microsoft\Edge\Application\msedge.exe',
+            os.path.expandvars(r'%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe'),
+            os.path.expandvars(r'%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe'),
+            os.path.expandvars(r'%PROGRAMFILES%\Google\Chrome\Application\chrome.exe'),
+        ]
+        for p in win_paths:
+            if os.path.exists(p):
+                return p
+
+        # 5. Known macOS paths
+        mac_paths = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+        ]
+        for p in mac_paths:
+            if os.path.exists(p):
+                return p
+
+        return None
 
     def _get_semaphore(self) -> asyncio.Semaphore:
         if self._semaphore is None:
@@ -29,29 +77,53 @@ class PDFService:
         return self._semaphore
 
     def _render_sync(self, html_content: str) -> bytes:
+        browser = self.browser_exe or self._detect_browser()
+        if not browser:
+            raise RuntimeError(
+                "PDF generation engine could not locate Chromium/Chrome on this server. "
+                "Ensure chromium is installed in the Linux environment."
+            )
+        self.browser_exe = browser
+
         with tempfile.TemporaryDirectory() as tmpdir:
             html_file = Path(tmpdir) / "document.html"
             pdf_file = Path(tmpdir) / "document.pdf"
 
             html_file.write_text(html_content, encoding="utf-8")
 
-            if self.browser_exe:
-                cmd = [
-                    self.browser_exe,
-                    "--headless=new",
-                    "--disable-gpu",
-                    "--no-margins",
-                    f"--print-to-pdf={str(pdf_file)}",
-                    str(html_file)
-                ]
-                try:
-                    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=25)
-                    if pdf_file.exists():
-                        return pdf_file.read_bytes()
-                except Exception as e:
-                    logger.error(f"Browser PDF generation error: {e}")
+            cmd = [
+                browser,
+                "--headless=new",
+                "--disable-gpu",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-software-rasterizer",
+                "--run-all-compositor-stages-before-draw",
+                "--no-margins",
+                f"--print-to-pdf={str(pdf_file)}",
+                str(html_file)
+            ]
 
-            raise RuntimeError("PDF generation engine could not find or run browser.")
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=30
+                )
+                if pdf_file.exists() and pdf_file.stat().st_size > 0:
+                    return pdf_file.read_bytes()
+                else:
+                    stderr = proc.stderr.decode(errors="ignore") if proc.stderr else "Empty PDF output"
+                    raise RuntimeError(f"PDF file was not created or is empty. Details: {stderr}")
+            except subprocess.CalledProcessError as e:
+                err_text = e.stderr.decode(errors="ignore") if e.stderr else str(e)
+                logger.error(f"Chromium PDF generation process exited with error: {err_text}")
+                raise RuntimeError(f"Chromium PDF process failed: {err_text[:200]}")
+            except Exception as e:
+                logger.error(f"Browser PDF generation error: {e}")
+                raise RuntimeError(f"PDF generation error: {str(e)}")
 
     def convert_html_to_pdf(self, html_content: str) -> bytes:
         return self._render_sync(html_content)

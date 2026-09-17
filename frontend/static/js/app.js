@@ -1003,8 +1003,16 @@ function attachEvents() {
         document.body.appendChild(a);
         a.click();
         a.remove();
+        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
       } else {
-        alert('PDF তৈরি করতে সমস্যা হয়েছে।');
+        let errMsg = 'PDF তৈরি করতে সমস্যা হয়েছে।';
+        try {
+          const errData = await res.json();
+          if (errData && errData.detail) {
+            errMsg = `PDF তৈরি ব্যর্থ হয়েছে: ${errData.detail}`;
+          }
+        } catch (_) {}
+        alert(errMsg);
       }
     } catch (err) {
       alert('PDF ডাউনলোড ব্যর্থ হয়েছে: ' + err.message);
