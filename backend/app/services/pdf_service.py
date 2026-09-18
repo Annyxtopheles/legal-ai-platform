@@ -85,7 +85,9 @@ class PDFService:
             )
         self.browser_exe = browser
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = tempfile.mkdtemp(prefix="legal_pdf_")
+        pdf_bytes = None
+        try:
             html_file = Path(tmpdir) / "document.html"
             pdf_file = Path(tmpdir) / "document.pdf"
             profile_dir = Path(tmpdir) / "chrome-profile"
@@ -123,32 +125,43 @@ class PDFService:
                 "--metrics-recording-only",
                 "--no-first-run",
                 "--no-zygote",
+                "--run-all-compositor-stages-before-draw",
                 "--safebrowsing-disable-auto-update",
                 "--mute-audio",
                 f"--print-to-pdf={str(pdf_file)}",
                 str(html_file)
             ]
 
+            proc = subprocess.run(
+                cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=35
+            )
+            if pdf_file.exists() and pdf_file.stat().st_size > 0:
+                pdf_bytes = pdf_file.read_bytes()
+            else:
+                stderr = proc.stderr.decode(errors="ignore") if proc.stderr else "Empty PDF output"
+                raise RuntimeError(f"PDF file was not created or is empty. Details: {stderr}")
+        except subprocess.CalledProcessError as e:
+            err_text = e.stderr.decode(errors="ignore") if e.stderr else str(e)
+            logger.error(f"Chromium PDF generation process exited with error: {err_text}")
+            raise RuntimeError(f"Chromium PDF process failed: {err_text[:200]}")
+        except Exception as e:
+            logger.error(f"Browser PDF generation error: {e}")
+            raise RuntimeError(f"PDF generation error: {str(e)}")
+        finally:
+            # Bulletproof cleanup with ignore_errors=True:
+            # Prevents [Errno 39] Directory not empty: 'Default' when Chromium still holds socket/cache handles
             try:
-                proc = subprocess.run(
-                    cmd,
-                    check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=30
-                )
-                if pdf_file.exists() and pdf_file.stat().st_size > 0:
-                    return pdf_file.read_bytes()
-                else:
-                    stderr = proc.stderr.decode(errors="ignore") if proc.stderr else "Empty PDF output"
-                    raise RuntimeError(f"PDF file was not created or is empty. Details: {stderr}")
-            except subprocess.CalledProcessError as e:
-                err_text = e.stderr.decode(errors="ignore") if e.stderr else str(e)
-                logger.error(f"Chromium PDF generation process exited with error: {err_text}")
-                raise RuntimeError(f"Chromium PDF process failed: {err_text[:200]}")
-            except Exception as e:
-                logger.error(f"Browser PDF generation error: {e}")
-                raise RuntimeError(f"PDF generation error: {str(e)}")
+                shutil.rmtree(tmpdir, ignore_errors=True)
+            except Exception:
+                pass
+
+        if pdf_bytes:
+            return pdf_bytes
+        raise RuntimeError("PDF generation failed: no output data produced.")
 
     def convert_html_to_pdf(self, html_content: str) -> bytes:
         return self._render_sync(html_content)

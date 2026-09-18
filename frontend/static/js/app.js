@@ -1371,18 +1371,22 @@ function attachEvents() {
         a.remove();
         setTimeout(() => window.URL.revokeObjectURL(url), 1000);
       } else {
-        let errMsg = 'PDF তৈরি করতে সমস্যা হয়েছে।';
+        let errMsg = 'ক্লাউড সার্ভার PDF বিলম্বিত হয়েছে।';
         try {
           const errData = await res.json();
           if (errData && errData.detail) {
-            errMsg = `PDF তৈরি ব্যর্থ হয়েছে: ${errData.detail}`;
+            errMsg = `ক্লাউড সার্ভার বার্তা: ${errData.detail}`;
           }
         } catch (_) {}
-        alert(errMsg);
+        if (confirm(`${errMsg}\n\nআপনি কি তাত্ক্ষণিক ব্রাউজার PDF ডাউনলোড (০ সেকেন্ডে সরাসরি সেভ) ব্যবহার করতে চান?`)) {
+          window.print();
+        }
       }
     } catch (err) {
       clearTimeout(wakeTimer);
-      alert('PDF ডাউনলোড ব্যর্থ হয়েছে: ' + err.message);
+      if (confirm(`ক্লাউড সার্ভার সংযোগে বিলম্ব হচ্ছে (${err.message})।\n\nআপনি কি তাত্ক্ষণিক ব্রাউজার PDF ডাউনলোড (০ সেকেন্ডে সরাসরি সেভ) ব্যবহার করতে চান?`)) {
+        window.print();
+      }
     } finally {
       clearTimeout(wakeTimer);
       btn.innerHTML = originalText;
