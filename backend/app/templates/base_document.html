@@ -276,11 +276,15 @@
   <div class="document-container" id="legal-document-root">
     <div class="stamp-header-space" id="stamp-header">
       <div>
-        <div style="font-size: 10pt; color: #991b1b; text-transform: uppercase;">গণপ্রজাতন্ত্রী বাংলাদেশ সরকার</div>
-        <div style="font-size: 13pt; font-weight: 800;">নন-জুডিশিয়াল স্ট্যাম্প (NON-JUDICIAL)</div>
+        <div style="font-size: 10pt; color: #991b1b; text-transform: uppercase;">
+          {{ 'গণপ্রজাতন্ত্রী বাংলাদেশ সরকার' if language == 'bn' else "Government of the People's Republic of Bangladesh" }}
+        </div>
+        <div style="font-size: 13pt; font-weight: 800;">
+          {{ 'নন-জুডিশিয়াল স্ট্যাম্প' if language == 'bn' else 'NON-JUDICIAL STAMP' }}
+        </div>
       </div>
       <div class="stamp-badge">
-        ৳ ৩০০ / 300 TK
+        {{ '৩০০ টাকা' if language == 'bn' else '300 BDT' }}
       </div>
     </div>
 
@@ -290,16 +294,16 @@
     <div class="verification-footer">
       <div style="display: flex; align-items: center; gap: 10px;">
         <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 6px; font-weight: bold; font-family: monospace; font-size: 9pt;">
-          [QR VERIFY]
+          {{ '[যাচাই কিউআর]' if language == 'bn' else '[QR VERIFY]' }}
         </div>
         <div>
-          <strong style="color: #0f172a;">SmartLegal AI • ভেরিফাইড আইনি দলিল</strong><br>
-          রেফারেন্স আইডি: SLA-BD-{{ range(10000, 99999) | random }} | প্ল্যাটফর্ম ভেরিফিকেশন কোড সক্রিয়
+          <strong style="color: #0f172a;">{{ 'স্মার্টলিগ্যাল প্ল্যাটফর্ম • প্রত্যায়িত আইনি দলিল' if language == 'bn' else 'SmartLegal AI • Certified Legal Document' }}</strong><br>
+          {{ 'রেফারেন্স কোড:' if language == 'bn' else 'Reference ID:' }} SLA-BD-{{ range(10000, 99999) | random }} | {{ 'ডিজিটাল প্রমাণিকতা সংরক্ষিত' if language == 'bn' else 'Cryptographic Authenticity Secured' }}
         </div>
       </div>
       <div>
         <span style="border: 1px solid #10b981; color: #047857; background: #ecfdf5; padding: 3px 8px; border-radius: 4px; font-weight: bold;">
-          ✓ ডিজিটালি সার্টিফাইড
+          {{ '✓ ডিজিটালি প্রত্যায়িত' if language == 'bn' else '✓ Digitally Certified' }}
         </span>
       </div>
     </div>
